@@ -40,26 +40,23 @@
 
 QTemporaryFile* Utils::m_tempHarness = 0;
 QTemporaryFile* Utils::m_tempWrapper = 0;
-
-// public:
-void Utils::showUsage()
-{
-    Terminal::instance()->cout(Utils::readResourceFileUtf8(":/usage.txt"));
-}
+bool Utils::printDebugMessages = false;
 
 void Utils::messageHandler(QtMsgType type, const char *msg)
 {
     QDateTime now = QDateTime::currentDateTime();
 
     switch (type) {
-#ifndef QT_NO_DEBUG
     case QtDebugMsg:
-        fprintf(stdout, "%s [DEBUG] %s\n", qPrintable(now.toString(Qt::ISODate)), msg);
+        if (printDebugMessages) {
+            fprintf(stderr, "%s [DEBUG] %s\n", qPrintable(now.toString(Qt::ISODate)), msg);
+        }
         break;
     case QtWarningMsg:
-        fprintf(stderr, "%s [WARNING] %s\n", qPrintable(now.toString(Qt::ISODate)), msg);
+        if (printDebugMessages) {
+            fprintf(stderr, "%s [WARNING] %s\n", qPrintable(now.toString(Qt::ISODate)), msg);
+        }
         break;
-#endif
     case QtCriticalMsg:
         fprintf(stderr, "%s [CRITICAL] %s\n", qPrintable(now.toString(Qt::ISODate)), msg);
         break;
@@ -68,6 +65,34 @@ void Utils::messageHandler(QtMsgType type, const char *msg)
         abort();
     }
 }
+#ifdef Q_OS_WIN32
+bool Utils::exceptionHandler(const TCHAR* dump_path, const TCHAR* minidump_id,
+                             void* context, EXCEPTION_POINTERS* exinfo,
+                             MDRawAssertionInfo *assertion, bool succeeded)
+{
+    Q_UNUSED(exinfo);
+    Q_UNUSED(assertion);
+    Q_UNUSED(context);
+  
+    fprintf(stderr, "PhantomJS has crashed. Please read the crash reporting guide at " \
+                    "https://github.com/ariya/phantomjs/wiki/Crash-Reporting and file a " \
+                    "bug report at https://code.google.com/p/phantomjs/issues/entry with the " \
+                    "crash dump file attached: %ls\\%ls.dmp\n",
+                    dump_path, minidump_id);
+    return succeeded;
+}
+#else
+bool Utils::exceptionHandler(const char* dump_path, const char* minidump_id, void* context, bool succeeded)
+{
+    Q_UNUSED(context);
+    fprintf(stderr, "PhantomJS has crashed. Please read the crash reporting guide at " \
+                    "https://github.com/ariya/phantomjs/wiki/Crash-Reporting and file a " \
+                    "bug report at https://code.google.com/p/phantomjs/issues/entry with the " \
+                    "crash dump file attached: %s/%s.dmp\n",
+                    dump_path, minidump_id);
+    return succeeded;
+}
+#endif
 
 QVariant Utils::coffee2js(const QString &script)
 {
@@ -94,16 +119,16 @@ bool Utils::injectJsInFrame(const QString &jsFilePath, const Encoding &jsFileEnc
         return false;
     }
     // Execute JS code in the context of the document
-    targetFrame->evaluateJavaScript(scriptBody);
+    targetFrame->evaluateJavaScript(scriptBody, jsFilePath);
     return true;
 }
 
-bool Utils::loadJSForDebug(const QString& jsFilePath, const QString& libraryPath, QWebFrame* targetFrame)
+bool Utils::loadJSForDebug(const QString& jsFilePath, const QString& libraryPath, QWebFrame* targetFrame, const bool autorun)
 {
-    return loadJSForDebug(jsFilePath, Encoding::UTF8, libraryPath, targetFrame);
+    return loadJSForDebug(jsFilePath, Encoding::UTF8, libraryPath, targetFrame, autorun);
 }
 
-bool Utils::loadJSForDebug(const QString& jsFilePath, const Encoding& jsFileEnc, const QString& libraryPath, QWebFrame* targetFrame)
+bool Utils::loadJSForDebug(const QString& jsFilePath, const Encoding& jsFileEnc, const QString& libraryPath, QWebFrame* targetFrame, const bool autorun)
 {
     QString scriptPath = findScript(jsFilePath, libraryPath);
     QString scriptBody = jsFromScriptFile(scriptPath, jsFileEnc);
@@ -111,6 +136,11 @@ bool Utils::loadJSForDebug(const QString& jsFilePath, const Encoding& jsFileEnc,
     QString remoteDebuggerHarnessSrc =  Utils::readResourceFileUtf8(":/remote_debugger_harness.html");
     remoteDebuggerHarnessSrc = remoteDebuggerHarnessSrc.arg(scriptBody);
     targetFrame->setHtml(remoteDebuggerHarnessSrc);
+
+    if (autorun) {
+        targetFrame->evaluateJavaScript("__run()", QString());
+    }
+
     return true;
 }
 

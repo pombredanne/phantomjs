@@ -1,36 +1,11 @@
 # List following and followers from several accounts
 
 users= [
-  'sencha'
-  'aconran'
-  'adityabansod'
-  'ambisinister'
-  'arnebech'
   'ariyahidayat'
-  'arthurakay'
-  'bmoeskau'
-  'darrellmeyer'
-  'davidfoelber'
-  'DavidKaneda'
-  'donovanerba'
-  'edspencer'
-  'evantrimboli'
-  'ExtAnimal'
-  'jamieavins'
-  'jarrednicholls'
-  'jayrobinson'
-  'lojjic'
-  'luckymethod'
-  'merrells'
-  'mmullany'
-  'philogb'
-  'philstrong'
-  'rdougan'
-  'SubtleGradient'
-  '__ted__'
-  'tmaintz'
-  'WesleyMoy'
-  'whereisthysting'
+  'detronizator'
+  'KDABQt'
+  'lfranchi'
+  'jonleighton'
   ]
 
 follow = (user, callback) ->
@@ -39,7 +14,7 @@ follow = (user, callback) ->
     if status is 'fail'
       console.log user + ': ?'
     else
-      data = page.evaluate -> document.querySelector('div.timeline-following').innerText
+      data = page.evaluate -> document.querySelector('div.profile td.stat.stat-last div.statnum').innerText;
       console.log user + ': ' + data
     callback.apply()
 

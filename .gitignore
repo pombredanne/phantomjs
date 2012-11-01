@@ -10,6 +10,7 @@ qrc_*
 *.o
 *.swp
 *.pyc
+*.a
 debian/*.debhelper
 debian/files
 debian/*.log
@@ -17,3 +18,9 @@ debian/*.substvars
 debian/*/
 /deploy/qt-*.tar.gz
 /deploy/Qt-*
+/symbols
+src/qt/qtc-debugging-helper
+
+# ignore ctags
+/tags
+tools/dump_syms.app/
