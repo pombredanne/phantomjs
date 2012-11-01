@@ -1,7 +1,8 @@
-// Get twitter status for given account (or for the default one, "sencha")
+// Get twitter status for given account (or for the default one, "PhantomJS")
 
 var page = require('webpage').create(),
-    twitterId = "sencha"; //< default value
+    system = require('system'),
+    twitterId = "PhantomJS"; //< default value
 
 // Route "console.log()" calls from within the Page context to the main Phantom context (i.e. current "this")
 page.onConsoleMessage = function(msg) {
@@ -9,10 +10,10 @@ page.onConsoleMessage = function(msg) {
 };
 
 // Print usage message, if no twitter ID is passed
-if (phantom.args.length < 1) {
+if (system.args.length < 2) {
     console.log("Usage: tweets.js [twitter ID]");
 } else {
-    twitterId = phantom.args[0];
+    twitterId = system.args[1];
 }
 
 // Heading
@@ -26,9 +27,9 @@ page.open(encodeURI("http://mobile.twitter.com/" + twitterId), function (status)
     } else {
         // Execute some DOM inspection within the page context
         page.evaluate(function() {
-            var list = document.querySelectorAll('span.status');
+            var list = document.querySelectorAll('div.tweet-text');
             for (var i = 0; i < list.length; ++i) {
-                console.log((i + 1) + ": " + list[i].innerHTML.replace(/<.*?>/g, ''));
+                console.log((i + 1) + ": " + list[i].innerText);
             }
         });
     }

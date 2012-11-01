@@ -18,6 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+
+#if defined(__FreeBSD__)
+#include <sys/socket.h>
+#endif
+
 #if defined(_WIN32)
 #define _CRT_SECURE_NO_WARNINGS // Disable deprecation warning in VS2005
 #else
@@ -215,7 +220,7 @@ typedef int SOCKET;
 
 #include "mongoose.h"
 
-#define MONGOOSE_VERSION "3.1"
+#define MONGOOSE_VERSION "3.0"
 #define PASSWORDS_FILE_NAME ".htpasswd"
 #define CGI_ENVIRONMENT_SIZE 4096
 #define MAX_CGI_ENVIR_VARS 64
@@ -860,16 +865,7 @@ static int pthread_cond_signal(pthread_cond_t *cv) {
 static int pthread_cond_broadcast(pthread_cond_t *cv) {
   // Implementation with PulseEvent() has race condition, see
   // http://www.cs.wustl.edu/~schmidt/win32-cv-1.html
-  // return PulseEvent(cv->broadcast) == 0 ? -1 : 0;
-
-  // [KirillJacobson] PulseEvent causes ms_stop() function to hang when the
-  // process runs in the VisualStudio debugger (observed on Windows XP SP3,
-  // VS 2008)
-  //
-  // MSDN states that PulseEvent() "function is unreliable and should 
-  // not be used. It exists mainly for backward compatibility"
-  // http://msdn.microsoft.com/en-us/library/ms684914%28v=vs.85%29.aspx
-  return SetEvent(cv->broadcast) == 0 ? -1 : 0;
+  return PulseEvent(cv->broadcast) == 0 ? -1 : 0;
 }
 
 static int pthread_cond_destroy(pthread_cond_t *cv) {
@@ -3342,7 +3338,7 @@ static int parse_port_string(const struct vec *vec, struct socket *so) {
 
 static int set_ports_option(struct mg_context *ctx) {
   const char *list = ctx->config[LISTENING_PORTS];
-  int on = 1, success = 1;
+  int reuseaddr = 1, success = 1;
   SOCKET sock;
   struct vec vec;
   struct socket so, *listener;
@@ -3359,18 +3355,9 @@ static int set_ports_option(struct mg_context *ctx) {
 #if !defined(_WIN32)
                // On Windows, SO_REUSEADDR is recommended only for
                // broadcast UDP sockets
-               setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on,
-                          sizeof(on)) != 0 ||
+               setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
+                          sizeof(reuseaddr)) != 0 ||
 #endif // !_WIN32
-               // Set TCP keep-alive. This is needed because if HTTP-level
-               // keep-alive is enabled, and client resets the connection,
-               // server won't get TCP FIN or RST and will keep the connection
-               // open forever. With TCP keep-alive, next keep-alive
-               // handshake will figure out that the client is down and
-               // will close the server end.
-               // Thanks to Igor Klopov who suggested the patch.
-               setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &on,
-                          sizeof(on)) != 0 ||
                bind(sock, &so.lsa.u.sa, so.lsa.len) != 0 ||
                listen(sock, 20) != 0) {
       closesocket(sock);

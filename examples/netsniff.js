@@ -61,7 +61,8 @@ function createHAR(address, title, startTime, resources)
                 wait: startReply.time - request.time,
                 receive: endReply.time - startReply.time,
                 ssl: -1
-            }
+            },
+            pageref: address
         });
     });
 
@@ -77,21 +78,24 @@ function createHAR(address, title, startTime, resources)
                 startedDateTime: startTime.toISOString(),
                 id: address,
                 title: title,
-                pageTimings: {}
+                pageTimings: {
+                    onLoad: page.endTime - page.startTime
+                }
             }],
             entries: entries
         }
     };
 }
 
-var page = require('webpage').create();
+var page = require('webpage').create(),
+    system = require('system');
 
-if (phantom.args.length === 0) {
-    console.log('Usage: netsniff.js <some URL>');
-    phantom.exit();
+if (system.args.length === 1) {
+    console.log('Usage: netsniff.coffee <some URL>');
+    phantom.exit(1);
 } else {
 
-    page.address = phantom.args[0];
+    page.address = system.args[1];
     page.resources = [];
 
     page.onLoadStarted = function () {
@@ -120,6 +124,7 @@ if (phantom.args.length === 0) {
         if (status !== 'success') {
             console.log('FAIL to load the address');
         } else {
+            page.endTime = new Date();
             page.title = page.evaluate(function () {
                 return document.title;
             });

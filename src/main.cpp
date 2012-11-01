@@ -29,22 +29,64 @@
 
 #include "consts.h"
 #include "utils.h"
+#include "env.h"
 #include "phantom.h"
 
-#if QT_VERSION < QT_VERSION_CHECK(4, 7, 0)
-#error Use Qt 4.7 or later version
+#ifdef Q_OS_LINUX
+#include "client/linux/handler/exception_handler.h"
+#endif
+#ifdef Q_OS_MAC
+#include "client/mac/handler/exception_handler.h"
 #endif
 
-int main(int argc, char** argv)
-{
-    // Registering an alternative Message Handler
-    qInstallMsgHandler(Utils::messageHandler);
+#include <QApplication>
 
-    // Check number of parameters passed
-    if (argc < 2) {
-        Utils::showUsage();
-        return 1;
+#ifdef Q_OS_WIN32
+using namespace google_breakpad;
+static google_breakpad::ExceptionHandler* eh;
+#if !defined(QT_SHARED) && !defined(QT_DLL)
+#include <QtPlugin>
+
+Q_IMPORT_PLUGIN(qcncodecs)
+Q_IMPORT_PLUGIN(qjpcodecs)
+Q_IMPORT_PLUGIN(qkrcodecs)
+Q_IMPORT_PLUGIN(qtwcodecs)
+Q_IMPORT_PLUGIN(qico)
+#endif
+#endif
+
+#if QT_VERSION != QT_VERSION_CHECK(4, 8, 2)
+#error Something is wrong with the setup. Please report to the mailing list!
+#endif
+
+int main(int argc, char** argv, const char** envp)
+{
+    // Setup Google Breakpad exception handler
+#ifdef Q_OS_LINUX
+    google_breakpad::ExceptionHandler eh("/tmp", NULL, Utils::exceptionHandler, NULL, true);
+#endif
+#ifdef Q_OS_MAC
+    google_breakpad::ExceptionHandler eh("/tmp", NULL, Utils::exceptionHandler, NULL, true, NULL);
+#endif
+#ifdef Q_OS_WIN32
+    // This is needed for CRT to not show dialog for invalid param
+    // failures and instead let the code handle it.
+    _CrtSetReportMode(_CRT_ASSERT, 0);
+
+    DWORD cbBuffer = ExpandEnvironmentStrings(TEXT("%TEMP%"), NULL, 0);
+
+    if (cbBuffer == 0) {
+        eh = new ExceptionHandler(TEXT("."), NULL, Utils::exceptionHandler, NULL, ExceptionHandler::HANDLER_ALL);
+    } else {
+        LPWSTR szBuffer = reinterpret_cast<LPWSTR>(malloc(sizeof(TCHAR) * (cbBuffer + 1)));
+
+        if (ExpandEnvironmentStrings(TEXT("%TEMP%"), szBuffer, cbBuffer + 1) > 0) {
+            wstring lpDumpPath(szBuffer);
+            eh = new ExceptionHandler(lpDumpPath, NULL, Utils::exceptionHandler, NULL, ExceptionHandler::HANDLER_ALL);
+        }
+        free(szBuffer);
     }
+#endif
 
     QApplication app(argc, argv);
 
@@ -54,9 +96,22 @@ int main(int argc, char** argv)
     app.setOrganizationDomain("www.ofilabs.com");
     app.setApplicationVersion(PHANTOMJS_VERSION_STRING);
 
-    Phantom phantom;
-    if (phantom.execute()) {
+    // Prepare the "env" singleton using the environment variables
+    Env::instance()->parse(envp);
+
+    // Registering an alternative Message Handler
+    qInstallMsgHandler(Utils::messageHandler);
+
+    // Get the Phantom singleton
+    Phantom *phantom = Phantom::instance();
+
+    // Start script execution
+    if (phantom->execute()) {
         app.exec();
     }
-    return phantom.returnValue();
+
+    // End script execution: delete the phantom singleton and set execution return value
+    int retVal = phantom->returnValue();
+    delete phantom;
+    return retVal;
 }

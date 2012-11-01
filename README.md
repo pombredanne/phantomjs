@@ -1,33 +1,44 @@
-PhantomJS ([www.phantomjs.org](http://phantomjs.org)) is a headless WebKit with JavaScript API.
+# [PhantomJS](http://phantomjs.org) - Scriptable Headless WebKit
 
-It has **fast** and **native** support for DOM handling, CSS selector, JSON, Canvas, and SVG.
+PhantomJS ([www.phantomjs.org](http://phantomjs.org)) is a headless WebKit scriptable with JavaScript or CoffeeScript. It is used by hundreds of [developers](https://github.com/ariya/phantomjs/wiki/Buzz) and dozens of [organizations](https://github.com/ariya/phantomjs/wiki/Users) for web-related development workflow.
 
-PhantomJS is cross-platform, it can be compiled for Linux, Windows, FreeBSD, and Mac OS X.
-Refer to the [build instructions](http://code.google.com/p/phantomjs/wiki/BuildInstructions)
-for details.
+The latest [stable release](http://phantomjs.org/release-1.7.html) is version 1.7 (codenamed <a href="http://phantomjs.org/release-names.html">"Blazing Star"</a>). Follow the official Twitter stream [@PhantomJS](http://twitter.com/PhantomJS) to get the frequent development updates.
 
-**Note**: If you are on Mac OS X, [read the notice](http://code.google.com/p/phantomjs/wiki/BuildInstructions#Mac_OS_X)
-before you start using `brew` or `port` to install Qt and/or PhantomJS.
+**Note**: Please **do not** create a GitHub pull request **without** reading the [Contribution Guide](https://github.com/ariya/phantomjs/blob/master/CONTRIBUTING.md) first. Failure to do so may result in the rejection of the pull request.
 
-PhantomJS scripts can be written in JavaScript or [CoffeeScript](http://jashkenas.github.com/coffee-script/).
+## Use Cases
 
-See also [quick start guide](http://code.google.com/p/phantomjs/wiki/QuickStart)
-and more [advanced examples](http://code.google.com/p/phantomjs/wiki/ServiceIntegration)
-which show various PhantomJS scripts, covering:
+- **Headless web testing**. Lightning-fast testing without the browser is now possible! Various [test frameworks](https://github.com/ariya/phantomjs/wiki/Headless-Testing) such as Jasmine, Capybara, QUnit, Mocha, WebDriver, YUI Test, BusterJS, FuncUnit, Robot Framework, and many others are supported.
+- **Page automation**. [Access and manipulate](https://github.com/ariya/phantomjs/wiki/Page-Automation) web pages with the standard DOM API, or with usual libraries like jQuery.
+- **Screen capture**. Programmatically [capture web contents](https://github.com/ariya/phantomjs/wiki/Screen-Capture), including CSs, SVG and Canvas. Build server-side web graphics apps, from a screenshot service to a vector chart rasterizer.
+- **Network monitoring**. Automate performance analysis, track [page loading](https://github.com/ariya/phantomjs/wiki/Network-Monitoring) and export as standard HAR format.
 
-* getting driving direction
-* showing weather forecast conditions
-* finding pizza in New York
-* looking up approximate location based on IP address
-* pulling the list of seasonal food
-* running regression tests from command line
-* producing PDF version of a Wikipedia article
-* rasterizing SVG to image
+## Features
 
-Do not forget to consult the concise [API Reference](http://code.google.com/p/phantomjs/wiki/Interface).
+- **Multiplatform**, available on major operating systems: Windows, Mac OS X, Linux, other Unices.
+- **Fast and native implementation** of web standards: DOM, CSS, JavaScript, Canvas, SVG. No emulation!
+- **Pure headless (no X11) on Linux**, ideal for continuous integration systems. Also runs on Amazon EC2, Heroku, Iron.io.
+- **Easy to install**: [Download](http://phantomjs.org/download.html), unpack, and start having fun in just 5 minutes.
 
-PhantomJS is based on [Qt](http://qt.nokia.com).
+## Ecosystem
 
-The latest [stable release](http://code.google.com/p/phantomjs/wiki/ReleaseNotes) is version 1.4 ("Glory of the Snow").
+PhantomJS needs not be used only as a stand-alone tool. Check also some excellent related projects:
 
-If you want to contribute, please read the [Contribution Guide](http://code.google.com/p/phantomjs/wiki/ContributionGuide).
+- [CasperJS](http://casperjs.org) enables easy navigation scripting and common high-level testing.
+- [Poltergeist](https://github.com/jonleighton/poltergeist) allows running Capybara tests headlessly.
+- [Guard::Jasmine](https://github.com/netzpirat/guard-jasmine) automatically tests Jasmine specs on Rails when files are modified.
+- [GhostDriver](http://github.com/detro/ghostdriver/) complements Selenium tests with a PhantomJS WebDriver implementation.
+- [PhantomRobot](https://github.com/datakurre/phantomrobot) runs Robot Framework acceptance tests in the background via PhantomJS.
+
+and many others [related projects](https://github.com/ariya/phantomjs/wiki/Related-Projects).
+
+## Questions?
+
+- Explore the complete [documentation](https://github.com/ariya/phantomjs/wiki)
+- Read tons of [user articles](https://github.com/ariya/phantomjs/wiki/Buzz) on using PhantomJS.
+- Join the [mailing-list](http://groups.google.com/group/phantomjs) and discuss with other PhantomJS fans.
+
+PhantomJS is free software/open source, and is distributed under the [BSD license](http://opensource.org/licenses/BSD-3-Clause). It contains third-party code, see the included `third-party.txt` file for the license information on third-party code.
+
+PhantomJS is created and maintained by [Ariya Hidayat](http://ariya.ofilabs.com/about) (Twitter: [@ariyahidayat](http://twitter.com/ariyahidayat)), with the help of [many contributors](https://github.com/ariya/phantomjs/contributors).
+
