@@ -36,7 +36,6 @@
 #include <QSemaphore>
 
 #include "mongoose.h"
-#include "replcompletable.h"
 
 class Config;
 
@@ -47,7 +46,7 @@ class WebServerResponse;
  *
  * see also: modules/webserver.js
  */
-class WebServer : public REPLCompletable
+class WebServer : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString port READ port)
@@ -85,9 +84,6 @@ public:
     bool handleRequest(mg_event event, mg_connection *conn, const mg_request_info *request);
 
 private:
-    virtual void initCompletions();
-
-private:
     mg_context *m_ctx;
     QString m_port;
     QMutex m_mutex;
@@ -99,7 +95,7 @@ private:
 /**
  * Outgoing HTTP response to client.
  */
-class WebServerResponse : public REPLCompletable
+class WebServerResponse : public QObject
 {
     Q_OBJECT
 
@@ -112,7 +108,9 @@ public slots:
     /// send @p headers to client with status code @p statusCode
     void writeHead(int statusCode, const QVariantMap &headers);
     /// sends @p data to client and makes sure the headers are send beforehand
-    void write(const QString &data);
+    void write(const QVariant &data);
+    // sets @p as encoding used to output data
+    void setEncoding(const QString &encoding);
 
     /**
      * Closes the request once all data has been written to the client.
@@ -145,13 +143,11 @@ public slots:
     void setHeaders(const QVariantMap &headers);
 
 private:
-    virtual void initCompletions();
-
-private:
     mg_connection *m_conn;
     int m_statusCode;
     QVariantMap m_headers;
     bool m_headersSent;
+    QString m_encoding;
     QSemaphore* m_close;
 };
 

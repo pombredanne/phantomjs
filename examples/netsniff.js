@@ -25,6 +25,12 @@ function createHAR(address, title, startTime, resources)
             return;
         }
 
+        // Exclude Data URI from HAR file because
+        // they aren't included in specification
+        if (request.url.match(/(^data:image\/.*)/i)) {
+            return;
+	}
+
         entries.push({
             startedDateTime: request.time.toISOString(),
             time: endReply.time - request.time,
@@ -91,7 +97,7 @@ var page = require('webpage').create(),
     system = require('system');
 
 if (system.args.length === 1) {
-    console.log('Usage: netsniff.coffee <some URL>');
+    console.log('Usage: netsniff.js <some URL>');
     phantom.exit(1);
 } else {
 
