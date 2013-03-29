@@ -51,8 +51,8 @@ describe("phantom global object", function() {
         expect(phantom.version.major).toEqual(1);
     });
 
-    it("should return 7 as the minor version", function() {
-        expect(phantom.version.minor).toEqual(7);
+    it("should return 9 as the minor version", function() {
+        expect(phantom.version.minor).toEqual(9);
     });
 
     it("should return 0 as the patch version", function() {
@@ -70,5 +70,22 @@ describe("phantom global object", function() {
     it("should have 'cookiesEnabled' property, and should be 'true' by default", function() {
         expect(phantom.hasOwnProperty('cookiesEnabled')).toBeTruthy();
         expect(phantom.cookiesEnabled).toBeTruthy();
+    });
+
+    it("should be able to get the error signal handler that is currently set on it", function() {
+        phantom.onError = undefined;
+        expect(phantom.onError).toBeUndefined();
+        var onErrorFunc1 = function() { return !"x"; };
+        phantom.onError = onErrorFunc1;
+        expect(phantom.onError).toEqual(onErrorFunc1);
+        var onErrorFunc2 = function() { return !!"y"; };
+        phantom.onError = onErrorFunc2;
+        expect(phantom.onError).toEqual(onErrorFunc2);
+        expect(phantom.onError).toNotEqual(onErrorFunc1);
+        phantom.onError = null;
+        // Will only allow setting to a function value, so setting it to `null` returns `undefined`
+        expect(phantom.onError).toBeUndefined();
+        phantom.onError = undefined;
+        expect(phantom.onError).toBeUndefined();
     });
 });

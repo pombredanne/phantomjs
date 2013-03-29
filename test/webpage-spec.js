@@ -102,6 +102,57 @@ describe("WebPage object", function() {
         expect(page).toNotEqual(null);
     });
 
+    it("should be able to get any signal handler that are currently set on it", function() {
+        page.onInitialized = undefined;
+        expect(page.onInitialized).toBeUndefined();
+        var onInitialized1 = function() { var x = "x"; };
+        page.onInitialized = onInitialized1;
+        expect(page.onInitialized).toEqual(onInitialized1);
+        var onInitialized2 = function() { var y = "y"; };
+        page.onInitialized = onInitialized2;
+        expect(page.onInitialized).toEqual(onInitialized2);
+        expect(page.onInitialized).toNotEqual(onInitialized1);
+        page.onInitialized = null;
+        // Will only allow setting to a function value, so setting it to `null` returns `undefined`
+        expect(page.onInitialized).toBeUndefined();
+        page.onInitialized = undefined;
+        expect(page.onInitialized).toBeUndefined();
+    });
+
+    it("should be able to get any callback handler that are currently set on it", function() {
+        page.onConfirm = undefined;
+        expect(page.onConfirm).toBeUndefined();
+        var onConfirmFunc1 = function() { return !"x"; };
+        page.onConfirm = onConfirmFunc1;
+        expect(page.onConfirm).toEqual(onConfirmFunc1);
+        var onConfirmFunc2 = function() { return !!"y"; };
+        page.onConfirm = onConfirmFunc2;
+        expect(page.onConfirm).toEqual(onConfirmFunc2);
+        expect(page.onConfirm).toNotEqual(onConfirmFunc1);
+        page.onConfirm = null;
+        // Will only allow setting to a function value, so setting it to `null` returns `undefined`
+        expect(page.onConfirm).toBeUndefined();
+        page.onConfirm = undefined;
+        expect(page.onConfirm).toBeUndefined();
+    });
+
+    it("should be able to get the error signal handler that is currently set on it (currently a special 1-off case)", function() {
+        page.onError = undefined;
+        expect(page.onError).toBeUndefined();
+        var onErrorFunc1 = function() { return !"x"; };
+        page.onError = onErrorFunc1;
+        expect(page.onError).toEqual(onErrorFunc1);
+        var onErrorFunc2 = function() { return !!"y"; };
+        page.onError = onErrorFunc2;
+        expect(page.onError).toEqual(onErrorFunc2);
+        expect(page.onError).toNotEqual(onErrorFunc1);
+        page.onError = null;
+        // Will only allow setting to a function value, so setting it to `null` returns `undefined`
+        expect(page.onError).toBeUndefined();
+        page.onError = undefined;
+        expect(page.onError).toBeUndefined();
+    });
+
     checkPageCallback(page);
     checkPageConfirm(page);
     checkPagePrompt(page);
@@ -121,7 +172,7 @@ describe("WebPage object", function() {
 
     expectHasProperty(page, 'paperSize');
     it("should have paperSize as an empty object", function() {
-            expect(page.paperSize).toEqual({});
+        expect(page.paperSize).toEqual({});
     });
 
     checkScrollPosition(page, {left:0,top:0});
@@ -134,12 +185,12 @@ describe("WebPage object", function() {
 
     expectHasProperty(page, 'customHeaders');
     it("should have customHeaders as an empty object", function() {
-            expect(page.customHeaders).toEqual({});
+        expect(page.customHeaders).toEqual({});
     });
 
     expectHasProperty(page, 'zoomFactor');
     it("should have zoomFactor of 1", function() {
-            expect(page.zoomFactor).toEqual(1.0);
+        expect(page.zoomFactor).toEqual(1.0);
     });
 
     expectHasProperty(page, 'event');
@@ -162,6 +213,7 @@ describe("WebPage object", function() {
     expectHasFunction(page, 'render');
     expectHasFunction(page, 'resourceReceived');
     expectHasFunction(page, 'resourceRequested');
+    expectHasFunction(page, 'resourceError');
     expectHasFunction(page, 'uploadFile');
     expectHasFunction(page, 'sendEvent');
     expectHasFunction(page, 'childFramesCount');
@@ -173,6 +225,23 @@ describe("WebPage object", function() {
     expectHasFunction(page, 'addCookie');
     expectHasFunction(page, 'deleteCookie');
     expectHasFunction(page, 'clearCookies');
+    expectHasFunction(page, 'setContent');
+
+    it("should set content and location", function() {
+        runs(function() {
+            var expectedContent = "<html><body><div>Test div</div></body></html>";
+            var expectedLocation = "http://www.phantomjs.org/";
+            page.setContent(expectedContent, expectedLocation);
+            var actualLocation = page.evaluate(function(){
+                return window.location.href;
+            });
+            var actualContent = page.evaluate(function(){
+                return document.documentElement.textContent;
+            });
+            expect(expectedLocation).toEqual(actualLocation);
+            expect(expectedContent).toContain("Test div");
+        });
+    });
 
     it("should handle keydown event", function() {
         runs(function() {
@@ -288,6 +357,29 @@ describe("WebPage object", function() {
         });
     });
 
+    it("should send proper key codes for text", function () {
+        runs(function() {
+            page.content = '<input type="text">';
+            page.evaluate(function() {
+                document.querySelector('input').focus();
+            });
+            page.sendEvent('keypress', "ABCD");
+            // 0x02000000 is the Shift modifier.
+            page.sendEvent('keypress', page.event.key.Home, null, null,  0x02000000);
+            // 0x04000000 is the Control modifier.
+            page.sendEvent('keypress', 'x', null, null, 0x04000000);
+            var text = page.evaluate(function() {
+                return document.querySelector('input').value;
+            });
+            expect(text).toEqual("");
+            page.sendEvent('keypress', 'v', null, null, 0x04000000);
+            text = page.evaluate(function() {
+                return document.querySelector('input').value;
+            });
+            expect(text).toEqual("ABCD");
+        });
+    });
+
     it("should handle keypress event of umlaut char with inputs", function() {
         runs(function() {
             page.content = '<input type="text">';
@@ -312,8 +404,6 @@ describe("WebPage object", function() {
             });
             page.sendEvent('mousedown', 42, 217);
         });
-
-        waits(50);
 
         runs(function() {
             var event = page.evaluate(function() {
@@ -397,13 +487,35 @@ describe("WebPage object", function() {
         });
     });
 
+    it("should handle doubleclick event", function () {
+        runs(function () {
+            page.content = '<input id="doubleClickField" type="text" onclick="document.getElementById(\'doubleClickField\').value=\'clicked\';" ondblclick="document.getElementById(\'doubleClickField\').value=\'doubleclicked\';" oncontextmenu="document.getElementById(\'doubleClickField\').value=\'rightclicked\'; return false;" value="hello"/>';
+            var point = page.evaluate(function () {
+                var el = document.querySelector('input');
+                var rect = el.getBoundingClientRect();
+                return { x: rect.left + Math.floor(rect.width / 2), y: rect.top + (rect.height / 2) };
+            });
+            page.sendEvent('doubleclick', point.x, point.y);
+        });
+
+        waits(50);
+
+        runs(function () {
+            var text = page.evaluate(function () {
+                return document.querySelector('input').value;
+            });
+            expect(text).toEqual("doubleclicked");
+        });
+    });
 
     it("should handle file uploads", function() {
         runs(function() {
             page.content = '<input type="file" id="file">\n' +
-                           '<input type="file" id="file2" multiple>';
-            page.uploadFile("#file", 'README.md');
-            page.uploadFile("#file2", 'README.md');
+                           '<input type="file" id="file2" multiple>\n' +
+                           '<input type="file" id="file3" multiple>';
+            page.uploadFile("#file", "run-tests.js");
+            page.uploadFile("#file2", "run-tests.js");
+            page.uploadFile("#file3", ["run-tests.js", "webpage-spec.js"]);
         });
 
         waits(50);
@@ -414,12 +526,23 @@ describe("WebPage object", function() {
             fileName = page.evaluate(function() {
                 return document.getElementById('file').files[0].fileName;
             });
-            expect(fileName).toEqual('README.md');
+            expect(fileName).toEqual("run-tests.js");
 
             fileName = page.evaluate(function() {
                 return document.getElementById('file2').files[0].fileName;
             });
-            expect(fileName).toEqual('README.md');
+            expect(fileName).toEqual("run-tests.js");
+
+            var files = page.evaluate(function() {
+                var files = document.getElementById('file3').files;
+                return {
+                    length: files.length,
+                    fileNames: [files[0].fileName, files[1].fileName]
+                }
+            });
+            expect(files.length).toEqual(2)
+            expect(files.fileNames[0]).toEqual("run-tests.js");
+            expect(files.fileNames[1]).toEqual("webpage-spec.js");
         });
     });
 
@@ -605,6 +728,49 @@ describe("WebPage object", function() {
                 expect(echoedHeaders["Referer"]).toEqual(customHeaders["Referer"]);
 
             });
+        });
+
+        waits(50);
+
+        runs(function() {
+            expect(handled).toEqual(true);
+            server.close();
+        });
+
+    });
+
+    it("should process request body properly for POST", function() {
+        var server = require('webserver').create();
+        server.listen(12345, function(request, response) {
+            // echo received request body in response body;
+            response.setHeader('Content-Type', 'text/html; charset=utf-8');
+            response.write(Object.keys(request.post)[0]);
+            response.close();
+        });
+
+        var url = "http://localhost:12345/foo/body";
+
+        var handled = false;
+        runs(function() {
+            expect(handled).toEqual(false);
+            var utfString = '안녕';
+            var openOptions = {
+                operation: 'POST',
+                data:       utfString,
+                encoding:  'utf8'
+            };
+            var pageOptions = {
+                onLoadFinished: function(status) {
+                    expect(status == 'success').toEqual(true);
+                    handled = true;
+
+                    expect(page.plainText).toEqual(utfString);
+                }
+            };
+
+            var page = new WebPage(pageOptions);
+
+            page.openUrl(url, openOptions, {});
         });
 
         waits(50);
@@ -900,6 +1066,147 @@ describe("WebPage object", function() {
             expect(message).toEqual("PASS");
         });
     });
+
+    it('should open url using secure connection', function() {
+        var page = require('webpage').create();
+        var url = 'https://en.wikipedia.org';
+
+        var handled = false;
+
+        runs(function() {
+            page.open(url, function(status) {
+                expect(status == 'success').toEqual(true);
+                handled = true;
+            });
+        });
+
+        waits(3000);
+
+        runs(function() {
+            expect(handled).toEqual(true);
+        });
+    });
+
+    it('should handle resource request errors', function() {
+        var server = require('webserver').create();
+        var page = require('webpage').create();
+
+        server.listen(12345, function(request, response) {
+            if (request.url == '/notExistResource.png') {
+                response.statusCode = 404;
+                response.write('Not found!');
+                response.close();
+            } else {
+                response.statusCode = 200;
+                response.write('<html><body><img src="notExistResource.png"/></body></html>');
+                response.close();
+            }
+        });
+
+        var handled = false;
+
+        runs(function() {
+            page.onResourceError = function(errorData) {
+                expect(errorData['url']).toEqual('http://localhost:12345/notExistResource.png');
+                expect(errorData['errorCode']).toEqual(203);
+                expect(errorData['errorString']).toContain('notExistResource.png - server replied: Not Found');
+                handled = true;
+            };
+
+            page.open('http://localhost:12345', function(status) {
+                expect(status).toEqual('success');
+            });
+        });
+
+        waits(5000);
+
+        runs(function() {
+            expect(handled).toEqual(true);
+            server.close();
+        });
+    });
+
+
+    it('should able to abort a network request', function() {
+        var page = require('webpage').create();
+        var url = 'http://phantomjs.org';
+        var urlToBlock = 'http://phantomjs.org/images/phantomjs-logo.png';
+
+        var handled = false;
+
+        runs(function() {
+            page.onResourceRequested = function(requestData, request) {
+                if (requestData['url'] == urlToBlock) {
+                    expect(typeof request).toEqual('object');
+                    expect(typeof request.abort).toEqual('function');
+                    request.abort();
+                    handled = true;
+                }
+            };
+
+            page.open(url, function(status) {
+                expect(status).toEqual('success');
+            });
+        });
+    });
+
+    it('should fail on secure connection to url with bad cert', function() {
+        var page = require('webpage').create();
+        var url = 'https://tv.eurosport.com/';
+        /* example from:
+         * https://onlinessl.netlock.hu/en/test-center/bad-ssl-certificate-usage.html
+         */
+
+        var handled = false;
+
+        runs(function() {
+            page.open(url, function(status) {
+                expect(status == 'success').toEqual(false);
+                handled = true;
+            });
+        });
+
+        waits(3000);
+
+        runs(function() {
+            expect(handled).toEqual(true);
+        });
+    });
+
+    it('should change the url of the request', function() {
+        var page = require('webpage').create();
+        var url = 'http://phantomjs.org';
+        var urlToChange = 'http://phantomjs.org/images/phantomjs-logo.png';
+        var fakeImageUrl = 'http://phantomjs.org/images/icon-release.png';
+
+        var handled = false;
+
+        runs(function() {
+            page.onResourceRequested = function(requestData, request) {
+                if (requestData['url'] == urlToChange) {
+                    expect(typeof request).toEqual('object');
+                    expect(typeof request.changeUrl).toEqual('function');
+                    request.changeUrl(fakeImageUrl);
+                }
+            };
+
+            page.onResourceReceived = function(data) {
+                if (data['stage'] === 'end' && data['url'] == fakeImageUrl) {
+                    handled = true;
+                }
+            };
+
+            page.open(url, function(status) {
+                expect(status).toEqual('success');
+            });
+        });
+
+        waits(3000);
+
+        runs(function() {
+            expect(handled).toBe(true);
+        });
+    });
 });
 
 describe("WebPage construction with options", function () {
@@ -988,6 +1295,18 @@ describe("WebPage construction with options", function () {
             }
         };
         checkScrollPosition(new WebPage(opts), opts.scrollPosition);
+    });
+
+    describe("specifying timeout", function () {
+        var opts = {
+            settings: {
+                timeout: 100 // time in ms
+            }
+        };
+        var page = new WebPage(opts);
+        it("should have timeout as "+opts.settings.timeout,function () {
+            expect(page.settings.timeout).toEqual(opts.settings.timeout);
+        });
     });
 
     describe("specifying userAgent", function () {
@@ -1294,6 +1613,34 @@ describe("WebPage opening and closing of windows/child-pages", function(){
     });
 });
 
+describe("WebPage timeout handling", function(){
+    it("should call 'onResourceTimeout' on timeout", function(){
+        var p = require("webpage").create(),
+            spy;
+
+        // assume that requesting a web page will take longer than a millisecond
+        p.settings.resourceTimeout = 1;
+
+        spy = jasmine.createSpy("onResourceTimeout spy");
+        p.onResourceTimeout = spy;
+
+        expect(spy.calls.length).toEqual(0);
+
+        p.open("http://www.google.com:81/");
+
+        waitsFor(function() {
+            return spy.calls.length==1;
+        }, "after 1+ milliseconds 'onResourceTimeout' should have been invoked", 10);
+
+        runs(function() {
+            expect(spy).toHaveBeenCalled();         //< called
+            expect(spy.calls.length).toEqual(1);    //< only once
+            expect(1).toEqual(1);
+        });
+
+    });
+});
+
 describe("WebPage closing notification/alerting", function(){
     it("should call 'onClosing' when 'page.close()' is called", function(){
         var p = require("webpage").create(),
@@ -1412,6 +1759,214 @@ describe("WebPage closing notification/alerting: closing propagation control", f
 
         runs(function() {
             expect(openPagesCount).toBe(0);
+        });
+    });
+});
+
+describe("WebPage 'onFilePicker'", function() {
+    it("should be able to set the file to upload when the File Picker is invoked (i.e. clicking on a 'input[type=file]')", function() {
+        var system = require('system'),
+            fileToUpload = system.os.name === "windows" ? "C:\\Windows\\System32\\drivers\\etc\\hosts" : "/etc/hosts",
+            server = require("webserver").create(),
+            page = require("webpage").create();
+
+        // Create a webserver that returns a page with an "input type=file" element
+        server.listen(12345, function(request, response) {
+            response.statusCode = 200;
+            response.write('<html><body><input type="file" id="fileup" /></body></html>');
+            response.close();
+        });
+
+        // Register "onFilePicker" handler
+        page.onFilePicker = function(oldFile) {
+            return fileToUpload;
+        };
+
+        runs(function() {
+            page.open("http://localhost:12345", function() {
+                // Before clicking on the file selector element
+                expect(page.evaluate(function() {
+                    var fileUp = document.querySelector("#fileup");
+                    return fileUp.files.length;
+                })).toBe(0);
+
+                // Click on file selector element, so the "onFilePicker" is invoked
+                page.evaluate(function() {
+                    var fileUp = document.querySelector("#fileup");
+                    var ev = document.createEvent("MouseEvents");
+                    ev.initEvent("click", true, true);
+                    fileUp.dispatchEvent(ev);
+                });
+
+                // After clicking on the file selector element
+                expect(page.evaluate(function() {
+                    var fileUp = document.querySelector("#fileup");
+                    return fileUp.files.length;
+                })).toBe(1);
+                expect(page.evaluate(function() {
+                    var fileUp = document.querySelector("#fileup");
+                    return fileUp.files[0].name;
+                })).toContain("hosts");
+            });
+        });
+
+        waits(100);
+
+        runs(function() {
+            server.close();
+        });
+    });
+});
+
+describe('WebPage navigation events', function() {
+    it('should navigate to relative url using window.location', function () {
+        var page = require("webpage").create();
+        var base = 'https://github.com';
+        var path = '/n1k0';
+        var expected = 'https://github.com/n1k0';
+        var isHandled = false;
+
+        runs(function() {
+            page.onNavigationRequested = function(url, navigationType, navigationLocked, isMainFrame) {
+                if (!page.testStarted) {
+                    return;
+                }
+
+                if (url === expected) {
+                    isHandled = true;
+                }
+            };
+
+            page.open(base, function(status) {
+                page.testStarted = true;
+
+                page.evaluate(function(path) {
+                    window.location = path;
+                }, path);
+            });
+        });
+
+        waits(10000);
+
+        runs(function() {
+            expect(isHandled).toEqual(true);
+        });
+    });
+});
+
+describe("WebPage render image", function(){
+    var TEST_FILE_DIR = "webpage-spec-renders/";
+
+    var p = require("webpage").create();
+    p.paperSize = { width: '300px', height: '300px', border: '0px' };
+    p.clipRect = { top: 0, left: 0, width: 300, height: 300};
+    p.viewportSize = { width: 300, height: 300};
+
+    p.open( TEST_FILE_DIR + "index.html");
+    waits(50);
+
+    function render_test( format, option ){
+         var opt = option || {};
+         var content, expect_content;
+         try {
+            var FILE_EXTENSION = format;
+            var FILE_NAME = "test";
+            var EXPECT_FILE;
+            if( opt.quality ){
+                EXPECT_FILE = TEST_FILE_DIR + FILE_NAME + opt.quality + "." + FILE_EXTENSION;
+            }
+            else{
+                EXPECT_FILE = TEST_FILE_DIR + FILE_NAME + "." + FILE_EXTENSION;
+            }
+
+            var TEST_FILE;
+            if( opt.format ){
+                TEST_FILE = TEST_FILE_DIR + "temp_" + FILE_NAME;
+            }
+            else{
+                TEST_FILE = TEST_FILE_DIR + "temp_" + FILE_NAME + "." + FILE_EXTENSION;
+            }
+
+            p.render(TEST_FILE, opt);
+
+            expect_content = fs.read(EXPECT_FILE, "b");
+            content = fs.read(TEST_FILE, "b");
+
+            fs.remove(TEST_FILE);
+        } catch (e) { console.log(e) }
+
+        // for PDF test
+        content = content.replace(/CreationDate \(D:\d+\)Z\)/,'');
+        expect_content = expect_content.replace(/CreationDate \(D:\d+\)Z\)/,'');
+
+        expect(content).toEqual(expect_content);
+    }
+
+    it("should render PDF file", function(){
+        render_test("pdf");
+    });
+
+    it("should render PDF file with format option", function(){
+        render_test("pdf", { format: "pdf" });
+    });
+
+    it("should render GIF file", function(){
+        render_test("gif");
+    });
+
+    it("should render GIF file with format option", function(){
+        render_test("gif", { format: "gif" });
+    });
+
+    it("should render PNG file", function(){
+        render_test("png");
+    });
+
+    it("should render PNG file with format option", function(){
+        render_test("png", { format: "png" });
+    });
+
+    it("should render JPEG file with quality option", function(){
+        render_test("jpg", { quality: 50 });
+    });
+
+    it("should render JPEG file with format and quality option", function(){
+        render_test("jpg", { format: 'jpg', quality: 50 });
+    });
+
+});
+
+describe("WebPage loading/loadingProgress properties", function() {
+    var p = require("webpage").create();
+
+    it("should not be loading when page has just been created", function() {
+        expect(p.loading).toBeFalsy();
+        expect(p.loadingProgress).toEqual(0);
+    });
+
+    it("should be loading when 'page.open' is invoked", function() {
+        var s = require("webserver").create();
+
+        s.listen(12345, function(request, response) {
+            setTimeout(function() {
+                response.statusCode = 200;
+                response.write('<html><body>Loaded!</body></html>');
+                response.close();
+            }, 500);
+        });
+
+        p.onLoadFinished = function(status) {
+            expect(p.loading).toBeFalsy();
+            expect(p.loadingProgress).toEqual(0);
+        };
+        p.open("http://localhost:12345");
+        expect(p.loading).toBeTruthy();
+        expect(p.loadingProgress).toBeGreaterThan(0);
+
+        waits(500);
+
+        runs(function() {
+            s.close();
         });
     });
 });

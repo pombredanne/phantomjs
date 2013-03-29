@@ -40,6 +40,7 @@
 #endif
 
 #include <QApplication>
+#include <QSslSocket>
 
 #ifdef Q_OS_WIN32
 using namespace google_breakpad;
@@ -55,7 +56,7 @@ Q_IMPORT_PLUGIN(qico)
 #endif
 #endif
 
-#if QT_VERSION != QT_VERSION_CHECK(4, 8, 2)
+#if QT_VERSION != QT_VERSION_CHECK(4, 8, 4)
 #error Something is wrong with the setup. Please report to the mailing list!
 #endif
 
@@ -101,6 +102,13 @@ int main(int argc, char** argv, const char** envp)
 
     // Registering an alternative Message Handler
     qInstallMsgHandler(Utils::messageHandler);
+
+#if defined(Q_OS_LINUX)
+    if (QSslSocket::supportsSsl()) {
+        // Don't perform on-demand loading of root certificates on Linux
+        QSslSocket::addDefaultCaCertificates(QSslSocket::systemCaCertificates());
+    }
+#endif
 
     // Get the Phantom singleton
     Phantom *phantom = Phantom::instance();

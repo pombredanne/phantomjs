@@ -8,6 +8,7 @@
   Copyright (C) 2011 Ivan De Marino <ivan.de.marino@gmail.com>
   Copyright (C) 2011 James Roe <roejames12@hotmail.com>
   Copyright (C) 2011 execjosh, http://execjosh.blogspot.com
+  Copyright (C) 2012 James M. Greene <james.m.greene@gmail.com>
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are met:
@@ -33,32 +34,52 @@
   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-phantom.__defineErrorSetter__ = function(obj, page) {
-    var handler;
+phantom.__defineErrorSignalHandler__ = function(obj, page, handlers) {
     var signal = page.javaScriptErrorSent;
+    var handlerName = 'onError';
 
-    obj.__defineSetter__('onError', function(f) {
-        if (handler && typeof handler === 'function') {
-            try { signal.disconnect(handler); }
+    obj.__defineSetter__(handlerName, function(f) {
+        // Disconnect previous handler (if any)
+        var handlerObj = handlers[handlerName];
+        if (!!handlerObj && typeof handlerObj.callback === "function" && typeof handlerObj.connector === "function") {
+            try { signal.disconnect(handlerObj.connector); }
             catch (e) {}
         }
+        
+        // Delete the previous handler
+        delete handlers[handlerName];
 
         if (typeof f === 'function') {
-            handler = function(message, stack) {
-              stack = JSON.parse(stack).map(function(item) {
-                  return { file: item.url, line: item.lineNumber, function: item.functionName }
-              });
+            var connector = function(message, stack) {
+                var revisedStack = JSON.parse(stack).map(function(item) {
+                    return { file: item.url, line: item.lineNumber, function: item.functionName }
+                });
 
-              f(message, stack);
+                f(message, revisedStack);
             };
-            signal.connect(handler);
-        } else {
-            handler = null;
+            
+            // Store the new handler for reference
+            handlers[handlerName] = {
+                callback: f,
+                connector: connector
+            };
+            
+            signal.connect(connector);
         }
+    });
+    
+    obj.__defineGetter__(handlerName, function() {
+        var handlerObj = handlers[handlerName];
+        return (!!handlerObj && typeof handlerObj.callback === "function" && typeof handlerObj.connector === "function") ?
+            handlers[handlerName].callback :
+            undefined;
     });
 };
 
-phantom.__defineErrorSetter__(phantom, phantom.page);
+(function() {
+    var handlers = {};
+    phantom.__defineErrorSignalHandler__(phantom, phantom.page, handlers);
+})();
 
 // TODO: Make this output to STDERR
 phantom.defaultErrorHandler = function(message, stack) {
@@ -66,11 +87,13 @@ phantom.defaultErrorHandler = function(message, stack) {
 
     stack.forEach(function(item) {
         var message = item.file + ":" + item.line;
-        if (item.function)
-            message += " in " + item.function;
+        if (item["function"])
+            message += " in " + item["function"];
         console.log("  " + message);
     });
 };
+
+phantom.onError = phantom.defaultErrorHandler;
 
 phantom.callback = function(callback) {
     var ret = phantom.createCallback();
@@ -80,8 +103,6 @@ phantom.callback = function(callback) {
     });
     return ret;
 };
-
-phantom.onError = phantom.defaultErrorHandler;
 
 (function() {
     // CommonJS module implementation follows
@@ -94,6 +115,7 @@ phantom.onError = phantom.defaultErrorHandler;
     // (for future, now both fs and system are loaded anyway)
     var nativeExports = {
         get fs() { return phantom.createFilesystem(); },
+        get child_process() { return phantom._createChildProcess(); },
         get system() { return phantom.createSystem(); }
     };
     var extensions = {
@@ -106,10 +128,10 @@ phantom.onError = phantom.defaultErrorHandler;
             module.exports = JSON.parse(fs.read(filename));
         }
     };
-    
+
     function loadFs() {
         var file, code, module, filename = ':/modules/fs.js';
-        
+
         module = new Module(filename);
         cache[filename] = module;
         module.exports = nativeExports.fs;
@@ -193,8 +215,8 @@ phantom.onError = phantom.defaultErrorHandler;
         var paths = [], dir;
 
         if (request[0] === '.') {
-            paths.push(fs.absolute(joinPath(this.dirname, request)));
-        } else if (request[0] === '/') {
+            paths.push(fs.absolute(joinPath(phantom.webdriverMode ? ":/ghostdriver" : this.dirname, request)));
+        } else if (fs.isAbsolute(request)) {
             paths.push(fs.absolute(request));
         } else {
             // first look in PhantomJS modules
@@ -254,6 +276,9 @@ phantom.onError = phantom.defaultErrorHandler;
 
         // first see if there are any stubs for the request
         if (this.stubs.hasOwnProperty(request)) {
+            if (this.stubs[request].exports instanceof Function) {
+                this.stubs[request].exports = this.stubs[request].exports();
+            }
             return this.stubs[request].exports;
         }
 
@@ -284,8 +309,11 @@ phantom.onError = phantom.defaultErrorHandler;
         cwd = fs.absolute(phantom.libraryPath);
         mainFilename = joinPath(cwd, basename(require('system').args[0]) || 'repl');
         mainModule._setFilename(mainFilename);
-        // include CoffeeScript which takes care of adding .coffee extension
-        require('_coffee-script');
+
+        // include CoffeeScript which takes care of adding .coffee extension (only if not in Webdriver mode)
+        if (!phantom.webdriverMode) {
+            require('_coffee-script');
+        }
     }());
 }());
 

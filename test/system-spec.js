@@ -6,6 +6,22 @@ describe("System object", function() {
         expect(system).toNotEqual(null);
     });
 
+    it("should have pid property", function() {
+        expect(system.hasOwnProperty('pid')).toBeTruthy();
+    });
+
+    it("should have pid as a number", function() {
+        expect(typeof system.pid).toEqual('number');
+    });
+
+    it("should have pid that is an integer", function() {
+        expect(system.pid).toMatch(/^\d+$/);
+    });
+
+    it("should have pid greater than 0", function() {
+        expect(system.pid).toBeGreaterThan(0);
+    });
+
     it("should have platform as string", function() {
         expect(typeof system.platform).toEqual('string');
     });
@@ -36,6 +52,21 @@ describe("System object", function() {
 
     it("should have isSSLSupported as boolean", function() {
         expect(typeof system.isSSLSupported).toEqual('boolean');
+    });
+
+    it("should have stdout as object", function() {
+        expect(typeof system.stdout).toEqual('object');
+        expect(null == system.stdout).toBeFalsy();
+    });
+
+    it("should have stderr as object", function() {
+        expect(typeof system.stderr).toEqual('object');
+        expect(null == system.stderr).toBeFalsy();
+    });
+
+    it("should have stdin as object", function() {
+        expect(typeof system.stdin).toEqual('object');
+        expect(null == system.stdin).toBeFalsy();
     });
 
 });
