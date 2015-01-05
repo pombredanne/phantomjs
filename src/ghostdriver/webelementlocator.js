@@ -1,7 +1,7 @@
 /*
 This file is part of the GhostDriver by Ivan De Marino <http://ivandemarino.me>.
 
-Copyright (c) 2012, Ivan De Marino <http://ivandemarino.me>
+Copyright (c) 2012-2014, Ivan De Marino <http://ivandemarino.me>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -59,7 +59,7 @@ ghostdriver.WebElementLocator = function(session) {
             locator.using && locator.value &&         //< if well-formed input
             _supportedStrategies.indexOf(locator.using) >= 0) {  //< and if strategy is recognized
 
-            _log.debug("_find", "Find element using Locator: " + JSON.stringify(locator));
+            _log.debug("_find.locator", JSON.stringify(locator));
 
             // Ensure "rootElement" is valid, otherwise undefine-it
             if (!rootElement || typeof(rootElement) !== "object" || !rootElement["ELEMENT"]) {
@@ -77,10 +77,10 @@ ghostdriver.WebElementLocator = function(session) {
             try {
                 return JSON.parse(findRes);
             } catch (e) {
-                errorMsg = "Invalid locator received: "+JSON.stringify(locator);
-                _log.error("_find", errorMsg);
+                errorMsg = JSON.stringify(locator);
+                _log.error("_find.locator.error", errorMsg);
                 return {
-                    "status"    : _errors.FAILED_CMD_STATUS_CODES[_errors.FAILED_CMD_STATUS.UNKNOWN_COMMAND],
+                    "status"    : _errors.FAILED_CMD_STATUS_CODES.UnknownCommand,
                     "value"     : errorMsg
                 };
             }
@@ -88,7 +88,7 @@ ghostdriver.WebElementLocator = function(session) {
 
         // Window was not found
         return {
-            "status"    : _errors.FAILED_CMD_STATUS_CODES[_errors.FAILED_CMD_STATUS.NO_SUCH_WINDOW],
+            "status"    : _errors.FAILED_CMD_STATUS_CODES.NoSuchWindow,
             "value"     : "No such window"
         };
     },
@@ -96,18 +96,17 @@ ghostdriver.WebElementLocator = function(session) {
     _locateElement = function(locator, rootElement) {
         var findElementRes = _find("element", locator, rootElement);
 
-        _log.debug("_locateElement", "Locator: "+JSON.stringify(locator));
-        _log.debug("_locateElement", "Find Element Result: "+JSON.stringify(findElementRes));
+        _log.debug("_locateElement.locator", JSON.stringify(locator));
+        _log.debug("_locateElement.findElementResult", JSON.stringify(findElementRes));
 
-        // If found
-        if (findElementRes !== null &&
-            typeof(findElementRes) === "object" &&
-            typeof(findElementRes.status) !== "undefined") {
+        // To check if element was found, the following must happen:
+        // 1. "findElementRes" result object must be valid
+        // 2. property "status" is found and is {Number}
+        if (findElementRes !== null && typeof(findElementRes) === "object" &&
+            findElementRes.hasOwnProperty("status") && typeof(findElementRes.status) === "number") {
             // If the atom succeeds, but returns a null value, the element was not found.
             if (findElementRes.status === 0 && findElementRes.value === null) {
-                findElementRes.status = _errors.FAILED_CMD_STATUS_CODES[
-                    _errors.FAILED_CMD_STATUS.NO_SUCH_ELEMENT
-                ];
+                findElementRes.status = _errors.FAILED_CMD_STATUS_CODES.NoSuchElement;
                 findElementRes.value = {
                     "message": "Unable to find element with " +
                         locator.using + " '" +
@@ -119,33 +118,31 @@ ghostdriver.WebElementLocator = function(session) {
 
         // Not found
         return {
-            "status"    : _errors.FAILED_CMD_STATUS_CODES[_errors.FAILED_CMD_STATUS.NO_SUCH_ELEMENT],
+            "status"    : _errors.FAILED_CMD_STATUS_CODES.NoSuchElement,
             "value"     : "No Such Element found"
         };
     },
 
     _locateElements = function(locator, rootElement) {
         var findElementsRes = _find("elements", locator, rootElement),
-            elements = [],
-            i, ilen;
+            elements = [];
 
-        _log.debug("_locateElements", "Locator: "+JSON.stringify(locator));
-        _log.debug("_locateElements", "Find Element(s) Result: "+JSON.stringify(findElementsRes));
+        _log.debug("_locateElements.locator", JSON.stringify(locator));
+        _log.debug("_locateElements.findElementsResult", JSON.stringify(findElementsRes));
 
-        // If something was found
-        if (findElementsRes !== null &&
-            typeof(findElementsRes) === "object" &&
-            findElementsRes.hasOwnProperty("status") &&
-            typeof(findElementsRes.status) === "number" &&
-            findElementsRes.hasOwnProperty("value") &&
-            findElementsRes.value !== null &&
-            typeof(findElementsRes.value) === "object") {
+        // To check if something was found, the following must happen:
+        // 1. "findElementsRes" result object must be valid
+        // 2. property "status" is found and is {Number}
+        // 3. property "value" is found and is and {Object}
+        if (findElementsRes !== null && typeof(findElementsRes) === "object" &&
+            findElementsRes.hasOwnProperty("status") && typeof(findElementsRes.status) === "number" &&
+            findElementsRes.hasOwnProperty("value") && findElementsRes.value !== null && typeof(findElementsRes.value) === "object") {
             return findElementsRes;
         }
 
         // Not found
         return {
-            "status"    : _errors.FAILED_CMD_STATUS_CODES[_errors.FAILED_CMD_STATUS.NO_SUCH_ELEMENT],
+            "status"    : _errors.FAILED_CMD_STATUS_CODES.NoSuchElement,
             "value"     : "No Such Elements found"
         };
     },
@@ -163,7 +160,7 @@ ghostdriver.WebElementLocator = function(session) {
                 activeElementRes = JSON.parse(activeElementRes);
             } catch (e) {
                 return {
-                    "status"    : _errors.FAILED_CMD_STATUS_CODES[_errors.FAILED_CMD_STATUS.NO_SUCH_ELEMENT],
+                    "status"    : _errors.FAILED_CMD_STATUS_CODES.NoSuchElement,
                     "value"     : "No Active Element found"
                 };
             }
@@ -175,7 +172,7 @@ ghostdriver.WebElementLocator = function(session) {
         }
 
         return {
-            "status"    : _errors.FAILED_CMD_STATUS_CODES[_errors.FAILED_CMD_STATUS.NO_SUCH_WINDOW],
+            "status"    : _errors.FAILED_CMD_STATUS_CODES.NoSuchWindow,
             "value"     : "No such window"
         };
     },
@@ -187,9 +184,11 @@ ghostdriver.WebElementLocator = function(session) {
             stopSearchByTime,
             request = {};
 
+        _log.debug("_handleLocateCommand", "Element(s) Search Start Time: " + searchStartTime);
+
         // If a "locatorMethod" was not provided, default to "locateElement"
         if(typeof(locatorMethod) !== "function") {
-            locatorMethod = this.locateElement;
+            locatorMethod = _locateElement;
         }
 
         // Some language bindings can send a null instead of an empty
@@ -201,8 +200,8 @@ ghostdriver.WebElementLocator = function(session) {
         // Try to find the element
         elementOrElements = locatorMethod(request, rootElement);
 
-        _log.debug("_handleLocateCommand", "Element or Elements: "+JSON.stringify(elementOrElements));
-        _log.debug("_handleLocateCommand", "Root Element: " + (typeof(rootElement) !== "undefined" ? JSON.stringify(rootElement) : "BODY"));
+        _log.debug("_handleLocateCommand.elements", JSON.stringify(elementOrElements));
+        _log.debug("_handleLocateCommand.rootElement", (typeof(rootElement) !== "undefined" ? JSON.stringify(rootElement) : "BODY"));
 
         if (elementOrElements &&
             elementOrElements.hasOwnProperty("status") &&
@@ -212,6 +211,9 @@ ghostdriver.WebElementLocator = function(session) {
             // return if elements found OR we passed the "stopSearchByTime"
             stopSearchByTime = searchStartTime + _session.getImplicitTimeout();
             if (elementOrElements.value.length !== 0 || new Date().getTime() > stopSearchByTime) {
+
+                _log.debug("_handleLocateCommand", "Element(s) Found. Search Stop Time: " + stopSearchByTime);
+
                 res.success(_session.getId(), elementOrElements.value);
                 return;
             }
@@ -220,6 +222,9 @@ ghostdriver.WebElementLocator = function(session) {
         // retry if we haven't passed "stopSearchByTime"
         stopSearchByTime = searchStartTime + _session.getImplicitTimeout();
         if (stopSearchByTime >= new Date().getTime()) {
+
+            _log.debug("_handleLocateCommand", "Element(s) NOT Found: RETRY. Search Stop Time: " + stopSearchByTime);
+
             // Recursive call in 50ms
             setTimeout(function(){
                 _handleLocateCommand(req, res, locatorMethod, rootElement, searchStartTime);
@@ -229,13 +234,14 @@ ghostdriver.WebElementLocator = function(session) {
 
         // Error handler. We got a valid response, but it was an error response.
         if (elementOrElements) {
-            _errors.handleFailedCommandEH(
-                _errors.FAILED_CMD_STATUS_CODES_NAMES[elementOrElements.status],
+
+            _log.error("_handleLocateCommand", "Element(s) NOT Found: GAVE UP. Search Stop Time: " + stopSearchByTime);
+
+            _errors.handleFailedCommandEH(elementOrElements.status,
                 elementOrElements.value.message,
                 req,
                 res,
-                _session,
-                "SessionReqHand");
+                _session);
             return;
         }
 

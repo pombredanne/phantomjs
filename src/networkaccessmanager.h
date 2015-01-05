@@ -61,8 +61,22 @@ public:
     JsNetworkRequest(QNetworkRequest* request, QObject* parent = 0);
     Q_INVOKABLE void abort();
     Q_INVOKABLE void changeUrl(const QString& url);
+    Q_INVOKABLE bool setHeader(const QString& name, const QVariant& value);
+
 private:
     QNetworkRequest* m_networkRequest;
+};
+
+class NoFileAccessReply : public QNetworkReply
+{
+    Q_OBJECT
+
+public:
+    NoFileAccessReply(QObject *parent, const QNetworkRequest &req, const QNetworkAccessManager::Operation op);
+    ~NoFileAccessReply();
+    void abort() {}
+protected:
+    qint64 readData(char *, qint64) { return -1; }
 };
 
 class NetworkAccessManager : public QNetworkAccessManager
@@ -81,6 +95,7 @@ public:
 
 protected:
     bool m_ignoreSslErrors;
+    bool m_localUrlAccessEnabled;
     int m_authAttempts;
     int m_maxAuthAttempts;
     int m_resourceTimeout;

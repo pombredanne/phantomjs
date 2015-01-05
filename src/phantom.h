@@ -33,12 +33,12 @@
 
 #include <QPointer>
 
-#include "csconverter.h"
 #include "filesystem.h"
 #include "encoding.h"
 #include "config.h"
 #include "system.h"
 #include "childprocess.h"
+#include "cookiejar.h"
 
 class WebPage;
 class CustomPage;
@@ -47,11 +47,9 @@ class WebServer;
 class Phantom : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QStringList args READ args)
     Q_PROPERTY(QVariantMap defaultPageSettings READ defaultPageSettings)
     Q_PROPERTY(QString libraryPath READ libraryPath WRITE setLibraryPath)
     Q_PROPERTY(QString outputEncoding READ outputEncoding WRITE setOutputEncoding)
-    Q_PROPERTY(QString scriptName READ scriptName)
     Q_PROPERTY(QVariantMap version READ version)
     Q_PROPERTY(QObject *page READ page)
     Q_PROPERTY(bool cookiesEnabled READ areCookiesEnabled WRITE setCookiesEnabled)
@@ -67,8 +65,6 @@ public:
     static Phantom *instance();
     virtual ~Phantom();
 
-    QStringList args() const;
-
     QVariantMap defaultPageSettings() const;
 
     QString outputEncoding() const;
@@ -79,8 +75,6 @@ public:
 
     QString libraryPath() const;
     void setLibraryPath(const QString &libraryPath);
-
-    QString scriptName() const;
 
     QVariantMap version() const;
 
@@ -108,6 +102,7 @@ public:
     Q_INVOKABLE QObject *_createChildProcess();
 
 public slots:
+    QObject *createCookieJar(const QString &filePath);
     QObject *createWebPage();
     QObject *createWebServer();
     QObject *createFilesystem();
@@ -166,6 +161,15 @@ public slots:
      */
     void clearCookies();
 
+    /**
+     * Set the application proxy
+     * @brief setProxy
+     * @param ip The proxy ip
+     * @param port The proxy port
+     * @param proxyType The type of this proxy
+     */
+    void setProxy(const QString &ip, const qint64 &port = 80, const QString &proxyType = "http", const QString &user = NULL, const QString &password = NULL);
+
     // exit() will not exit in debug mode. debugExit() will always exit.
     void exit(int code = 0);
     void debugExit(int code = 0);
@@ -193,6 +197,7 @@ private:
     QList<QPointer<WebPage> > m_pages;
     QList<QPointer<WebServer> > m_servers;
     Config m_config;
+    CookieJar *m_defaultCookieJar;
 
     friend class CustomPage;
 };

@@ -1,8 +1,8 @@
 /*
 This file is part of the GhostDriver by Ivan De Marino <http://ivandemarino.me>.
 
-Copyright (c) 2012, Ivan De Marino <http://ivandemarino.me>
-Copyright (c) 2012, Alex Anderson <@alxndrsn>
+Copyright (c) 2012-2014, Ivan De Marino <http://ivandemarino.me>
+Copyright (c) 2014, Alex Anderson <@alxndrsn>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -59,11 +59,16 @@ ghostdriver.SessionReqHand = function(session) {
         SOURCE          : "source",
         COOKIE          : "cookie",
         KEYS            : "keys",
+        FILE            : "file",
         MOVE_TO         : "moveto",
         CLICK           : "click",
         BUTTON_DOWN     : "buttondown",
         BUTTON_UP       : "buttonup",
-        DOUBLE_CLICK    : "doubleclick"
+        DOUBLE_CLICK    : "doubleclick",
+        PHANTOM_DIR     : "/phantom/",
+        PHANTOM_EXEC    : "execute",
+        LOG             : "log",
+        TYPES           : "types"
     };
 
     var
@@ -133,7 +138,7 @@ ghostdriver.SessionReqHand = function(session) {
         } else if (req.urlParsed.file === _const.REFRESH && req.method === "POST") {
             _refreshCommand(req, res);
             return;
-        } else if (req.urlParsed.file === _const.EXECUTE && req.method === "POST") {
+        } else if (req.urlParsed.file === _const.EXECUTE && req.urlParsed.directory === "/" && req.method == "POST") {
             _executeCommand(req, res);
             return;
         } else if (req.urlParsed.file === _const.EXECUTE_ASYNC && req.method === "POST") {
@@ -157,6 +162,9 @@ ghostdriver.SessionReqHand = function(session) {
         } else if (req.urlParsed.file === _const.MOVE_TO && req.method === "POST") {
             _postMouseMoveToCommand(req, res);
             return;
+        } else if (req.urlParsed.file === _const.PHANTOM_EXEC && req.urlParsed.directory === _const.PHANTOM_DIR && req.method === "POST") {
+            _executePhantomJS(req, res);
+            return;
         } else if (req.urlParsed.file === _const.CLICK && req.method === "POST") {
             _postMouseClickCommand(req, res, "click");
             return;
@@ -178,9 +186,31 @@ ghostdriver.SessionReqHand = function(session) {
                 _deleteCookieCommand(req, res);
             }
             return;
+        } else if (req.urlParsed.chunks[0] === _const.LOG && req.method === "POST") {  //< ".../log"
+            _postLog(req, res);
+            return;
+        } else if (req.urlParsed.chunks[0] === _const.LOG && req.urlParsed.chunks[1] === _const.TYPES && req.method === "GET") {  //< ".../log/types"
+            _getLogTypes(req, res);
+            return;
+        } else if (req.urlParsed.chunks[0] === _const.LOG && _session.getLogTypes().indexOf(req.urlParsed.chunks[1]) >= 0 && req.method === "GET") {  //< ".../log/LOG_TYPE"
+            _getLog(req, res, req.urlParsed.chunks[1]);
+        } else if (req.urlParsed.file == _const.FILE && req.method === "POST") {
+            _postUploadFileCommand(req, res);
+            return;
         }
 
         throw _errors.createInvalidReqInvalidCommandMethodEH(req);
+    },
+
+    _postUploadFileCommand = function(req, res) {
+        var postObj = JSON.parse(req.post),
+            currWindow = _protoParent.getSessionCurrWindow.call(this, _session, req),
+            inputFileSelector = postObj.selector,
+            filePath = postObj.filepath;
+
+        _log.debug("_postUploadFileCommand about to upload file", inputFileSelector, filePath)
+        currWindow.uploadFile(inputFileSelector, filePath);
+        res.success(_session.getId())
     },
 
     _createOnSuccessHandler = function(res) {
@@ -195,7 +225,7 @@ ghostdriver.SessionReqHand = function(session) {
             command,
             targetWindow;
 
-        _log.debug("_doWindowHandleCommands", "req => " + JSON.stringify(req));
+        _log.debug("_doWindowHandleCommands", JSON.stringify(req));
 
         // Ensure all the parameters are provided
         if (req.urlParsed.chunks.length === 3) {
@@ -253,8 +283,8 @@ ghostdriver.SessionReqHand = function(session) {
         }
 
         targetWindow.viewportSize = {
-            width : newWidth,
-            height : newHeight
+            width   : newWidth,
+            height  : newHeight
         };
         res.success(_session.getId());
     },
@@ -292,7 +322,16 @@ ghostdriver.SessionReqHand = function(session) {
     },
 
     _postWindowMaximizeCommand = function(req, res, targetWindow) {
-        // NOTE: Nothing to do! PhantomJS is headless. :)
+        // NOTE: PhantomJS is headless, so there is no "screen" to maximize to
+        // or "window" resize to that.
+        //
+        // NOTE: The most common screen resolution used online is currently: 1366x768
+        // See http://gs.statcounter.com/#resolution-ww-monthly-201307-201312.
+        targetWindow.viewportSize = {
+            width   : 1366,
+            height  : 768
+        };
+
         res.success(_session.getId());
     },
 
@@ -354,13 +393,11 @@ ghostdriver.SessionReqHand = function(session) {
             timer = setTimeout(function() {
                 // The script didn't return within the expected timeframe
                 timedOut = true;
-                _errors.handleFailedCommandEH(
-                    _errors.FAILED_CMD_STATUS.TIMEOUT,
+                _errors.handleFailedCommandEH(_errors.FAILED_CMD_STATUS_CODES.Timeout,
                     "Script didn't return within " + scriptTimeout + "ms",
                     req,
                     res,
-                    _session,
-                    "SessionReqHand");
+                    _session);
             }, scriptTimeout);
 
             // Launch the actual script
@@ -385,11 +422,11 @@ ghostdriver.SessionReqHand = function(session) {
     _executeAsyncCommand = function(req, res) {
         var postObj = JSON.parse(req.post);
 
-        _log.debug("_executeCommand", "postObj => " + JSON.stringify(postObj));
+        _log.debug("_executeAsyncCommand", JSON.stringify(postObj));
 
         if (typeof(postObj) === "object" && postObj.script && postObj.args) {
             _protoParent.getSessionCurrWindow.call(this, _session, req).setOneShotCallback("onCallback", function() {
-                _log.debug("_executeCommand", "onCallback - arguments => " + JSON.stringify(arguments));
+                _log.debug("_executeAsyncCommand.callbackArguments", JSON.stringify(arguments));
 
                 res.respondBasedOnResult(_session, req, arguments[0]);
             });
@@ -401,7 +438,7 @@ ghostdriver.SessionReqHand = function(session) {
                 "}",
                 postObj.script,
                 postObj.args,
-                _session.getAsyncScriptTimeout());
+                _session.getScriptTimeout());
         } else {
             throw _errors.createInvalidReqMissingCommandParameterEH(req);
         }
@@ -416,12 +453,10 @@ ghostdriver.SessionReqHand = function(session) {
         if (handle !== null) {
             res.success(_session.getId(), handle);
         } else {
-            throw _errors.createFailedCommandEH(
-                    _errors.FAILED_CMD_STATUS.NO_SUCH_WINDOW,   //< error name
-                    "Current window handle invalid (closed?)",  //< error message
-                    req,                                        //< request
-                    _session,                                   //< session
-                    "SessionReqHand");                          //< class name
+            throw _errors.createFailedCommandEH(_errors.FAILED_CMD_STATUS_CODES.NoSuchWindow,
+                "Current window handle invalid (closed?)",
+                req,
+                _session);
         }
     },
 
@@ -456,31 +491,21 @@ ghostdriver.SessionReqHand = function(session) {
             currWindow.switchToMainFrame();
 
             // Load URL and wait for load to finish (or timeout)
-            currWindow.execFuncAndWaitForLoad(
-                function() {
-                    currWindow.open(postObj.url);
+            currWindow.execFuncAndWaitForLoad(function() {
+                    currWindow.open(postObj.url.trim());
                 },
-                _createOnSuccessHandler(res),           //< success
-                function(errMsg) {                      //< failure/timeout
-                    if (errMsg === "timeout") {
-                        // Request timed out
-                        _errors.handleFailedCommandEH(
-                            _errors.FAILED_CMD_STATUS.TIMEOUT,
-                            "URL '" + postObj.url + "' didn't load within the 'Page Load Timeout'",
-                            req,
-                            res,
-                            _session,
-                            "SessionReqHand");
-                    } else {
-                        // Unknown error
-                        _errors.handleFailedCommandEH(
-                            _errors.FAILED_CMD_STATUS.UNKNOWN_ERROR,
-                            "URL '" + postObj.url + "' didn't load. Error: '" + errMsg + "'",
-                            req,
-                            res,
-                            _session,
-                            "SessionReqHand");
-                    }
+                _createOnSuccessHandler(res),               //< success
+                function(errMsg) {                          //< failure/timeout
+                    var errCode = errMsg === "timeout"
+                        ? _errors.FAILED_CMD_STATUS_CODES.Timeout
+                        : _errors.FAILED_CMD_STATUS_CODES.UnknownError;
+
+                    // Report error
+                    _errors.handleFailedCommandEH(errCode,
+                        "URL '" + postObj.url + "' didn't load. Error: '" + errMsg + "'",
+                        req,
+                        res,
+                        _session);
                 });
         } else {
             throw _errors.createInvalidReqMissingCommandParameterEH(req);
@@ -494,17 +519,17 @@ ghostdriver.SessionReqHand = function(session) {
         if (req.urlParsed.file === _const.IMPLICIT_WAIT) {
             postObj["type"] = _session.timeoutNames.IMPLICIT;
         } else if (req.urlParsed.file === _const.ASYNC_SCRIPT) {
-            postObj["type"] = _session.timeoutNames.ASYNC_SCRIPT;
+            postObj["type"] = _session.timeoutNames.SCRIPT;
         }
 
-        if (typeof(postObj["type"]) !== "undefined" && typeof(postObj["ms"]) !== "undefined") {
+        if (typeof(postObj["type"]) === "string" && typeof(postObj["ms"]) === "number") {
+
+            _log.debug("_postTimeout", JSON.stringify(postObj));
+
             // Set the right timeout on the Session
             switch(postObj["type"]) {
                 case _session.timeoutNames.SCRIPT:
                     _session.setScriptTimeout(postObj["ms"]);
-                    break;
-                case _session.timeoutNames.ASYNC_SCRIPT:
-                    _session.setAsyncScriptTimeout(postObj["ms"]);
                     break;
                 case _session.timeoutNames.IMPLICIT:
                     _session.setImplicitTimeout(postObj["ms"]);
@@ -512,6 +537,8 @@ ghostdriver.SessionReqHand = function(session) {
                 case _session.timeoutNames.PAGE_LOAD:
                     _session.setPageLoadTimeout(postObj["ms"]);
                     break;
+                default:
+                    throw _errors.createInvalidReqMissingCommandParameterEH(req);
             }
 
             res.success(_session.getId());
@@ -590,7 +617,7 @@ ghostdriver.SessionReqHand = function(session) {
                     }
                 }
             } else if (typeof(postObj.id) === "object" && typeof(postObj.id["ELEMENT"]) === "string") {
-                _log.debug("_postFrameCommand", "Switching to frame ELEMENT: " + JSON.stringify(postObj.id));
+                _log.debug("_postFrameCommand.element", JSON.stringify(postObj.id));
 
                 // Will use the Element JSON to find the frame name
                 frameName = currWindow.evaluate(
@@ -602,7 +629,7 @@ ghostdriver.SessionReqHand = function(session) {
                     "return arguments[0].name || arguments[0].id;",
                     [postObj.id]);
 
-                _log.debug("_postFrameCommand", "Will try to switch to Frame using: "+frameName.value);
+                _log.debug("_postFrameCommand.frameName", frameName.value);
 
                 // If a frame name (or id) is found for the given ELEMENT, we
                 // "re-call" this very function, changing the `post` property
@@ -622,12 +649,10 @@ ghostdriver.SessionReqHand = function(session) {
                 res.success(_session.getId());
             } else {
                 // ... otherwise, throw the appropriate exception
-                throw _errors.createFailedCommandEH(
-                    _errors.FAILED_CMD_STATUS.NO_SUCH_FRAME,    //< error name
-                    "Unable to switch to frame",                //< error message
-                    req,                                        //< request
-                    _session,                                   //< session
-                    "SessionReqHand");                          //< class name
+                throw _errors.createFailedCommandEH(_errors.FAILED_CMD_STATUS_CODES.NoSuchFrame,
+                    "Unable to switch to frame",
+                    req,
+                    _session);
             }
         } else {
             throw _errors.createInvalidReqMissingCommandParameterEH(req);
@@ -698,8 +723,8 @@ ghostdriver.SessionReqHand = function(session) {
         // normalize click
         clickType = clickType || "click";
 
-        // The protocol allows language bindings to send an empty string
-        if (req.post.length > 0) {
+        // The protocol allows language bindings to send an empty string (or no data at all)
+        if (req.post && req.post.length > 0) {
             postObj = JSON.parse(req.post);
         }
 
@@ -726,13 +751,11 @@ ghostdriver.SessionReqHand = function(session) {
         // If the page has not loaded anything yet, setting cookies is forbidden
         if (currWindow.url.indexOf("about:blank") === 0) {
             // Something else went wrong
-            _errors.handleFailedCommandEH(
-                _errors.FAILED_CMD_STATUS.UNABLE_TO_SET_COOKIE,
+            _errors.handleFailedCommandEH(_errors.FAILED_CMD_STATUS_CODES.UnableToSetCookie,
                 "Unable to set Cookie: no URL has been loaded yet",
                 req,
                 res,
-                _session,
-                "SessionReqHand");
+                _session);
             return;
         }
 
@@ -751,22 +774,18 @@ ghostdriver.SessionReqHand = function(session) {
                 // Something went wrong while trying to set the cookie
                 if (currWindow.url.indexOf(postObj.cookie.domain) < 0) {
                     // Domain mismatch
-                    _errors.handleFailedCommandEH(
-                        _errors.FAILED_CMD_STATUS.INVALID_COOKIE_DOMAIN,
+                    _errors.handleFailedCommandEH(_errors.FAILED_CMD_STATUS_CODES.InvalidCookieDomain,
                         "Can only set Cookies for the current domain",
                         req,
                         res,
-                        _session,
-                        "SessionReqHand");
+                        _session);
                 } else {
                     // Something else went wrong
-                    _errors.handleFailedCommandEH(
-                        _errors.FAILED_CMD_STATUS.UNABLE_TO_SET_COOKIE,
+                    _errors.handleFailedCommandEH(_errors.FAILED_CMD_STATUS_CODES.UnableToSetCookie,
                         "Unable to set Cookie",
                         req,
                         res,
-                        _session,
-                        "SessionReqHand");
+                        _session);
                 }
             }
         } else {
@@ -808,30 +827,26 @@ ghostdriver.SessionReqHand = function(session) {
         if (closed) {
             res.success(_session.getId());
         } else {
-            throw _errors.createFailedCommandEH(
-                    _errors.FAILED_CMD_STATUS.NO_SUCH_WINDOW,   //< error name
-                    "Unable to close window (closed already?)", //< error message
-                    req,                                        //< request
-                    _session,                                   //< session
-                    "SessionReqHand");                          //< class name
+            throw _errors.createFailedCommandEH(_errors.FAILED_CMD_STATUS_CODES.NoSuchWindow,
+                "Unable to close window (closed already?)",
+                req,
+                _session);
         }
     },
 
     _postWindowCommand = function(req, res) {
         var params = JSON.parse(req.post);
 
-        if (typeof(params) === "object" && params.name) {
+        if (typeof(params) === "object" && typeof(params.name) === "string") {
             // Report a success if we manage to switch the current window,
             // otherwise throw a Failed Command Error
             if (_session.switchToWindow(params.name)) {
                 res.success(_session.getId());
             } else {
-                throw _errors.createFailedCommandEH(
-                    _errors.FAILED_CMD_STATUS.NO_SUCH_WINDOW,   //< error name
-                    "Unable to switch to window (closed?)",     //< error message
-                    req,                                        //< request
-                    _session,                                   //< session
-                    "SessionReqHand");                          //< class name
+                throw _errors.createFailedCommandEH(_errors.FAILED_CMD_STATUS_CODES.NoSuchWindow,
+                    "Unable to switch to window (closed?)",
+                    req,
+                    _session);
             }
         } else {
             throw _errors.createInvalidReqMissingCommandParameterEH(req);
@@ -840,6 +855,31 @@ ghostdriver.SessionReqHand = function(session) {
 
     _getTitleCommand = function(req, res) {
         res.success(_session.getId(), _protoParent.getSessionCurrWindow.call(this, _session, req).title);
+    },
+
+    _executePhantomJS = function(req, res) {
+        var params = JSON.parse(req.post);
+        if (typeof(params) === "object" && params.script && params.args) {
+            res.success(_session.getId(), _session.executePhantomJS(_protoParent.getSessionCurrWindow.call(this, _session, req), params.script, params.args));
+        } else {
+            throw _errors.createInvalidReqMissingCommandParameterEH(req);
+        }
+    },
+
+    _postLog = function (req, res) {
+        var params = JSON.parse(req.post);
+        if (!params.type || _session.getLogTypes().indexOf(params.type) < 0) {
+            throw _errors.createInvalidReqMissingCommandParameterEH(req);
+        }
+        _getLog(req, res, params.type);
+    },
+
+    _getLogTypes = function (req, res) {
+        res.success(_session.getId(), _session.getLogTypes());
+    },
+
+    _getLog = function (req, res, logType) {
+        res.success(_session.getId(), _session.getLog(logType));
     };
 
     // public:

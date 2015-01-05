@@ -123,12 +123,15 @@ bool File::write(const QString &data)
     if ( m_fileStream ) {
         // text file
         (*m_fileStream) << data;
+        if (_isUnbuffered()) {
+            m_fileStream->flush();
+        }
         return true;
     } else {
         // binary file
         QByteArray bytes(data.size(), Qt::Uninitialized);
         for(int i = 0; i < data.size(); ++i) {
-            bytes[i] = data.at(i).toAscii();
+            bytes[i] = data.at(i).toLatin1();
         }
         return m_file->write(bytes);
     }
@@ -158,7 +161,7 @@ QString File::readLine()
         return m_fileStream->readLine();
     } else {
         // binary file - doesn't make much sense but well...
-        return QString::fromAscii(m_file->readLine());
+        return QString::fromLatin1(m_file->readLine());
     }
 }
 
@@ -211,6 +214,56 @@ void File::close()
         m_file = NULL;
     }
     deleteLater();
+}
+
+bool File::setEncoding(const QString &encoding) {
+    if (encoding.isEmpty() || encoding.isNull()) {
+        return false;
+    }
+
+    // "Binary" mode doesn't use/need text codecs
+    if ((QTextStream *)NULL == m_fileStream) {
+        // TODO: Should we switch to "text" mode?
+        return false;
+    }
+
+    // Since there can be multiple names for the same codec (i.e., "utf8" and
+    // "utf-8"), we need to get the codec in the system first and use its
+    // canonical name
+    QTextCodec *codec = QTextCodec::codecForName(encoding.toLatin1());
+    if ((QTextCodec *)NULL == codec) {
+      return false;
+    }
+
+    // Check whether encoding actually needs to be changed
+    const QString encodingBeforeUpdate(m_fileStream->codec()->name());
+    if (0 == encodingBeforeUpdate.compare(QString(codec->name()), Qt::CaseInsensitive)) {
+        return false;
+    }
+
+    m_fileStream->setCodec(codec);
+
+    // Return whether update was successful
+    const QString encodingAfterUpdate(m_fileStream->codec()->name());
+    return 0 != encodingBeforeUpdate.compare(encodingAfterUpdate, Qt::CaseInsensitive);
+}
+
+QString File::getEncoding() const
+{
+    QString encoding;
+
+    if ((QTextStream *)NULL != m_fileStream) {
+        encoding = QString(m_fileStream->codec()->name());
+    }
+
+    return encoding;
+}
+
+// private:
+
+bool File::_isUnbuffered() const
+{
+    return m_file->openMode() & QIODevice::Unbuffered;
 }
 
 
@@ -405,7 +458,7 @@ QObject *FileSystem::_open(const QString &path, const QVariantMap &opts) const
 
     // Determine the OpenMode
     foreach(const QChar &c, modeVar.toString()) {
-        switch(c.toAscii()) {
+        switch(c.toLatin1()) {
         case 'r': case 'R': {
             modeCode |= QFile::ReadOnly;
             break;
@@ -448,7 +501,7 @@ QObject *FileSystem::_open(const QString &path, const QVariantMap &opts) const
     if (!isBinary) {
         // default to UTF-8 encoded files
         const QString charset = opts.value("charset", "UTF-8").toString();
-        codec = QTextCodec::codecForName(charset.toAscii());
+        codec = QTextCodec::codecForName(charset.toLatin1());
         if (!codec) {
             qDebug() << "FileSystem::open - " << "Unknown charset:" << charset;
             return 0;

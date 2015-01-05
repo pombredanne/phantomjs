@@ -35,44 +35,45 @@
 */
 
 phantom.__defineErrorSignalHandler__ = function(obj, page, handlers) {
-    var signal = page.javaScriptErrorSent;
     var handlerName = 'onError';
 
-    obj.__defineSetter__(handlerName, function(f) {
-        // Disconnect previous handler (if any)
-        var handlerObj = handlers[handlerName];
-        if (!!handlerObj && typeof handlerObj.callback === "function" && typeof handlerObj.connector === "function") {
-            try { signal.disconnect(handlerObj.connector); }
-            catch (e) {}
-        }
-        
-        // Delete the previous handler
-        delete handlers[handlerName];
+    Object.defineProperty(obj, handlerName, {
+        set: function (f) {
+            // Disconnect previous handler (if any)
+            var handlerObj = handlers[handlerName];
+            if (!!handlerObj && typeof handlerObj.callback === "function" && typeof handlerObj.connector === "function") {
+                try { page.javaScriptErrorSent.disconnect(handlerObj.connector); }
+                catch (e) { }
+            }
 
-        if (typeof f === 'function') {
-            var connector = function(message, stack) {
-                var revisedStack = JSON.parse(stack).map(function(item) {
-                    return { file: item.url, line: item.lineNumber, function: item.functionName }
-                });
+            // Delete the previous handler
+            delete handlers[handlerName];
 
-                f(message, revisedStack);
-            };
-            
-            // Store the new handler for reference
-            handlers[handlerName] = {
-                callback: f,
-                connector: connector
-            };
-            
-            signal.connect(connector);
+            if (typeof f === 'function') {
+                var connector = function (message, lineNumber, source, stack) {
+                    var revisedStack = JSON.parse(stack).map(function (item) {
+                        return { file: item.url, line: item.lineNumber, function: item.functionName };
+                    });
+                    if (revisedStack.length == 0)
+                        revisedStack = [{ file: source, line: lineNumber }];
+
+                    f(message, revisedStack);
+                };
+                // Store the new handler for reference
+                handlers[handlerName] = {
+                    callback: f,
+                    connector: connector
+                };
+
+                page.javaScriptErrorSent.connect(connector);
+            }
+        },
+        get: function () {
+            var handlerObj = handlers[handlerName];
+            return (!!handlerObj && typeof handlerObj.callback === "function" && typeof handlerObj.connector === "function") ?
+                handlers[handlerName].callback :
+                undefined;
         }
-    });
-    
-    obj.__defineGetter__(handlerName, function() {
-        var handlerObj = handlers[handlerName];
-        return (!!handlerObj && typeof handlerObj.callback === "function" && typeof handlerObj.connector === "function") ?
-            handlers[handlerName].callback :
-            undefined;
     });
 };
 
@@ -111,6 +112,7 @@ phantom.callback = function(callback) {
     // fs is loaded at the end, when everything is ready
     var fs;
     var cache = {};
+    var paths = [];
     // use getters to initialize lazily
     // (for future, now both fs and system are loaded anyway)
     var nativeExports = {
@@ -209,36 +211,44 @@ phantom.callback = function(callback) {
 
     Module.prototype._isNative = function() {
         return this.filename && this.filename[0] === ':';
-    }
+    };
 
     Module.prototype._getPaths = function(request) {
-        var paths = [], dir;
+        var _paths = [], dir;
 
         if (request[0] === '.') {
-            paths.push(fs.absolute(joinPath(phantom.webdriverMode ? ":/ghostdriver" : this.dirname, request)));
+            _paths.push(fs.absolute(joinPath(phantom.webdriverMode ? ":/ghostdriver" : this.dirname, request)));
         } else if (fs.isAbsolute(request)) {
-            paths.push(fs.absolute(request));
+            _paths.push(fs.absolute(request));
         } else {
             // first look in PhantomJS modules
-            paths.push(joinPath(':/modules', request));
+            _paths.push(joinPath(':/modules', request));
             // then look in node_modules directories
             if (!this._isNative()) {
                 dir = this.dirname;
                 while (dir) {
-                    paths.push(joinPath(dir, 'node_modules', request));
+                    _paths.push(joinPath(dir, 'node_modules', request));
                     dir = dirname(dir);
                 }
             }
         }
 
-        return paths;
+        for (var i=0; i<paths.length; ++i) {
+            if(fs.isAbsolute(paths[i])) {
+                _paths.push(fs.absolute(joinPath(paths[i], request)));
+            } else {
+                _paths.push(fs.absolute(joinPath(this.dirname, paths[i], request)));
+            }
+        }
+
+        return _paths;
     };
 
     Module.prototype._getFilename = function(request) {
-        var path, filename = null, paths = this._getPaths(request);
+        var path, filename = null, _paths = this._getPaths(request);
 
-        for (var i=0; i<paths.length && !filename; ++i) {
-            path = paths[i];
+        for (var i=0; i<_paths.length && !filename; ++i) {
+            path = _paths[i];
             filename = tryFile(path) || tryExtensions(path) || tryPackage(path) ||
                 tryExtensions(joinPath(path, 'index'));
         }
@@ -254,6 +264,7 @@ phantom.callback = function(callback) {
         }
         require.cache = cache;
         require.extensions = extensions;
+        require.paths = paths;
         require.stub = function(request, exports) {
             self.stubs[request] = { exports: exports };
         };
@@ -309,11 +320,6 @@ phantom.callback = function(callback) {
         cwd = fs.absolute(phantom.libraryPath);
         mainFilename = joinPath(cwd, basename(require('system').args[0]) || 'repl');
         mainModule._setFilename(mainFilename);
-
-        // include CoffeeScript which takes care of adding .coffee extension (only if not in Webdriver mode)
-        if (!phantom.webdriverMode) {
-            require('_coffee-script');
-        }
     }());
 }());
 

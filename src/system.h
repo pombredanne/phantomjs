@@ -31,6 +31,7 @@
 #ifndef SYSTEM_H
 #define SYSTEM_H
 
+#include <QApplication>
 #include <QObject>
 #include <QStringList>
 #include <QMap>
@@ -48,9 +49,9 @@ class System : public QObject
     Q_PROPERTY(QVariant env READ env)
     Q_PROPERTY(QVariant os READ os)
     Q_PROPERTY(bool isSSLSupported READ isSSLSupported)
-    Q_PROPERTY(QObject *stdout READ _stdout)
-    Q_PROPERTY(QObject *stderr READ _stderr)
-    Q_PROPERTY(QObject *stdin READ _stdin)
+    Q_PROPERTY(QObject *standardout READ _stdout)
+    Q_PROPERTY(QObject *standarderr READ _stderr)
+    Q_PROPERTY(QObject *standardin READ _stdin)
 
 public:
     explicit System(QObject *parent = 0);
@@ -76,7 +77,12 @@ public:
     // system.stdin
     QObject *_stdin();
 
+private slots:
+    void _onTerminalEncodingChanged(const QString &encoding);
+
 private:
+    File *createFileInstance(QFile *f);
+
     QStringList m_args;
     QVariant m_env;
     QMap<QString, QVariant> m_os;

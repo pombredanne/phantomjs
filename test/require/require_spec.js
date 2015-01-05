@@ -11,12 +11,12 @@ describe("require()", function() {
         should.exist(require('webserver').create);
     });
 
-    it("loads 'system' native module", function() {
-        require('system').platform.should.equal('phantomjs');
+    it("loads 'cookiejar' native module", function() {
+        should.exist(require('cookiejar').create);
     });
 
-    it("loads CoffeeScript modules", function() {
-        require('./coffee_dummy').should.equal('require/coffee_dummy');
+    it("loads 'system' native module", function() {
+        require('system').platform.should.equal('phantomjs');
     });
 
     it("doesn't expose CoffeeScript", function() {
@@ -56,7 +56,7 @@ describe("require()", function() {
         }).should.Throw("Cannot find module 'dummy_missing'");
     });
 
-    it("maintains proper .stack when module not found", function() {
+    xit("maintains proper .stack when module not found", function() {
         try {
             require('./not_found').requireNonExistent();
         } catch (e) {
@@ -64,7 +64,7 @@ describe("require()", function() {
         }
     });
 
-    it("maintains proper .stack when an error is thrown in module's exports", function() {
+    xit("maintains proper .stack when an error is thrown in module's exports", function() {
         try {
             require('./thrower').fn();
         } catch (e) {
@@ -154,10 +154,62 @@ describe("require()", function() {
             });
         });
     });
-    
+
     describe("when path is absolute", function() {
         it("loads modules from the absolute path", function() {
             require(fs.absolute('dummy')).should.equal('spec/dummy');
+        });
+    });
+
+    describe("with require.paths", function() {
+        describe("when require.paths.push(relative)", function() {
+            it("add relative path to paths", function() {
+                require.paths.push('./dir/subdir');
+            });
+
+            it("loads 'loader' module in dir/subdir", function() {
+                require('loader').dummyFile2.should.equal('spec/node_modules/dummy_file2');
+            });
+
+            it("loads 'loader' module in dir/subdir2 relative to require.paths", function() {
+                require('../subdir2/loader').should.equal('require/subdir2/loader');
+            });
+
+            it("loads 'dummy' module from the path that takes precedence", function() {
+                require('../dummy').should.equal('spec/dummy');
+            });
+
+            it("doesn't load 'loader' module in dir/subdir after require.paths.pop()", function() {
+                (function() {
+                    require.paths.pop();
+                    require('loader');
+                }).should.Throw("Cannot find module 'loader'");
+            });
+        });
+
+        describe("when require.paths.push(absolute)", function() {
+            it("adds absolute path to paths", function() {
+                require.paths.push(fs.absolute('require/dir/subdir'));
+            });
+
+            it("loads 'loader' module in dir/subdir", function() {
+                require('loader').dummyFile2.should.equal('spec/node_modules/dummy_file2');
+            });
+
+            it("loads 'loader' module in dir/subdir2 relative to require.paths", function() {
+                require('../subdir2/loader').should.equal('require/subdir2/loader');
+            });
+
+            it("loads 'dummy' module from the path that takes precedence", function() {
+                require('../dummy').should.equal('spec/dummy');
+            });
+
+            it("doesn't load 'loader' module in dir/subdir after require.paths.pop()", function() {
+                (function() {
+                    require.paths.pop();
+                    require('loader');
+                }).should.Throw("Cannot find module 'loader'");
+            });
         });
     });
 });

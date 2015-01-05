@@ -32,6 +32,7 @@
 #define COOKIEJAR_H
 
 #include <QSettings>
+#include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QVariantList>
 #include <QVariantMap>
@@ -40,34 +41,38 @@ class CookieJar: public QNetworkCookieJar
 {
     Q_OBJECT
 
-private:
-    CookieJar(QString cookiesFile, QObject *parent = NULL);
+    Q_PROPERTY(QVariantList cookies READ cookiesToMap WRITE addCookiesFromMap)
 
 public:
-    static CookieJar *instance(QString cookiesFile = QString());
+    CookieJar(QString cookiesFile, QObject *parent = NULL);
     virtual ~CookieJar();
 
     bool setCookiesFromUrl(const QList<QNetworkCookie> &cookieList, const QUrl & url);
     QList<QNetworkCookie> cookiesForUrl (const QUrl & url) const;
 
     bool addCookie(const QNetworkCookie &cookie, const QString &url = QString());
-    bool addCookieFromMap(const QVariantMap &cookie, const QString &url = QString());
     bool addCookies(const QList<QNetworkCookie> &cookiesList, const QString &url = QString());
-    bool addCookiesFromMap(const QVariantList &cookiesList, const QString &url = QString());
 
     QList<QNetworkCookie> cookies(const QString &url = QString()) const;
-    QVariantList cookiesToMap(const QString &url = QString()) const;
 
     QNetworkCookie cookie(const QString &name, const QString &url = QString()) const;
-    QVariantMap cookieToMap(const QString &name, const QString &url = QString()) const;
 
-    bool deleteCookie(const QString &name, const QString &url = QString());
+    using QNetworkCookieJar::deleteCookie;
     bool deleteCookies(const QString &url = QString());
-    void clearCookies();
 
     void enable();
     void disable();
     bool isEnabled() const;
+
+public slots:
+    void addCookie(const QVariantMap &cookie);
+    bool addCookieFromMap(const QVariantMap &cookie, const QString &url = QString());
+    bool addCookiesFromMap(const QVariantList &cookiesList, const QString &url = QString());
+    QVariantList cookiesToMap(const QString &url = QString()) const;
+    QVariantMap cookieToMap(const QString &name, const QString &url = QString()) const;
+    bool deleteCookie(const QString &name, const QString &url = QString());
+    void clearCookies();
+    void close();
 
 private slots:
     bool purgeExpiredCookies();

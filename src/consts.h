@@ -32,12 +32,13 @@
 #ifndef CONSTS_H
 #define CONSTS_H
 
-#define PHANTOMJS_VERSION_MAJOR     1
-#define PHANTOMJS_VERSION_MINOR     9
+#define PHANTOMJS_VERSION_MAJOR     2
+#define PHANTOMJS_VERSION_MINOR     0
 #define PHANTOMJS_VERSION_PATCH     0
-#define PHANTOMJS_VERSION_STRING    "1.9.0"
+#define PHANTOMJS_VERSION_STRING    "2.0.0 (development)"
 
-#define COFFEE_SCRIPT_EXTENSION     ".coffee"
+#define HTTP_HEADER_CONTENT_LENGTH      "content-length"
+#define HTTP_HEADER_CONTENT_TYPE        "content-type"
 
 #define JS_ELEMENT_CLICK "(function (el) { " \
         "var ev = document.createEvent('MouseEvents');" \
